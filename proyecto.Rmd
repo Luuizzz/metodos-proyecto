@@ -1,0 +1,167 @@
+---
+title: "EDA - Insurance Premium Prediction (Kaggle)"
+author: "Juan Luis Castillo Giovannetty y Alejandro de Jesus Cotes Fornaris"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Contexto
+
+Dataset de la competencia de Kaggle "Regression with an Insurance Dataset"
+(Playground Series). Es un dataset sintetico generado con un modelo de deep
+learning entrenado sobre el dataset original de prediccion de primas de
+seguro. El target es `Premium.Amount` (continuo) y la metrica de evaluacion
+de la competencia es RMSLE, lo que motiva mirar tambien la escala
+logaritmica del target.
+
+## Carga de datos
+
+```{r carga}
+library(tidyverse)
+library(Amelia)
+
+train <- read.csv("~/GitHub/metodos-proyecto/train.csv")
+dim(train)
+str(train)
+df <- train
+```
+
+## Limpieza previa: `""` como ausente
+
+Varias columnas categoricas (por ejemplo `Occupation`) usan strings vacios
+`""` en vez de `NA`, por lo que `is.na()` no las detecta. Se normalizan antes
+de cualquier conteo de ausentes.
+
+```{r limpieza}
+df <- df |>
+    mutate(across(where(is.character), ~ na_if(., "")))
+
+numeric_vars <- c("Age", "Annual.Income", "Health.Score", "Number.of.Dependents",
+                   "Previous.Claims", "Vehicle.Age", "Credit.Score", "Insurance.Duration")
+
+categorical_vars <- c("Gender", "Marital.Status", "Education.Level", "Occupation",
+                       "Location", "Policy.Type", "Customer.Feedback",
+                       "Smoking.Status", "Exercise.Frequency", "Property.Type")
+```
+
+## Datos ausentes
+
+```{r missing}
+df |>
+    summarise(across(everything(), ~ sum(is.na(.)), .names = "NA_{.col}"))
+
+missmap(df)
+```
+
+**Nota importante:** `Previous.Claims` (~30% NA) y `Credit.Score` (~11% NA)
+son, por lejos, las columnas con mas ausentes. Cualquier interpretacion sobre
+su relacion con `Premium.Amount` mas adelante sera tomada con cautela: la
+imputacion por promedio que se aplica al final del documento aplana
+artificialmente su varianza y puede debilitar una correlacion que en los
+datos reales sea mas fuerte. Es decir, si estas dos variables aparecen como
+"poco relevantes" en el EDA, eso podria ser un efecto de la imputacion y no
+del fenomeno real.
+
+## Resumen univariado de predictores
+
+Antes de cruzar cada variable con el target, conviene conocer su propia
+distribucion.
+
+```{r univariado-numericas}
+summary(df[, numeric_vars])
+```
+
+```{r univariado-categoricas}
+for (v in categorical_vars) {
+    cat("\n---", v, "---\n")
+    print(table(df[[v]], useNA = "ifany"))
+}
+```
+
+## Variable objetivo: `Premium.Amount`
+
+```{r target}
+ggplot(df, aes(x = Premium.Amount)) +
+    geom_histogram(bins = 50) +
+    labs(title = "Distribucion de Premium.Amount")
+
+ggplot(df, aes(x = log1p(Premium.Amount))) +
+    geom_histogram(bins = 50) +
+    labs(title = "Distribucion de log(1 + Premium.Amount)")
+```
+
+## Numericas vs target
+
+```{r numericas-vs-target}
+for (v in numeric_vars) {
+    p <- ggplot(df, aes(x = .data[[v]], y = Premium.Amount)) +
+        geom_point(alpha = 0.05) +
+        labs(title = paste("Premium.Amount vs", v))
+    print(p)
+}
+```
+
+### Correlacion entre numericas (chequeo de multicolinealidad)
+
+```{r correlacion}
+cor_matrix <- df |>
+    select(all_of(numeric_vars), Premium.Amount) |>
+    cor(use = "pairwise.complete.obs")
+print(cor_matrix)
+```
+
+## Categoricas vs target
+
+```{r categoricas-vs-target}
+for (v in categorical_vars) {
+    p <- ggplot(df, aes(x = .data[[v]], y = Premium.Amount)) +
+        geom_boxplot() +
+        labs(title = paste("Premium.Amount por", v)) +
+        theme(axis.text.x = element_text(angle = 45, hjust = 1))
+    print(p)
+}
+```
+
+## `Policy.Start.Date`
+
+Se convierte a fecha real y se extraen componentes temporales que podrian
+capturar estacionalidad.
+
+```{r fecha}
+df <- df |>
+    mutate(
+        Policy.Start.Date = as.POSIXct(Policy.Start.Date),
+        Policy.Start.Year = year(Policy.Start.Date),
+        Policy.Start.Month = month(Policy.Start.Date),
+        Policy.Start.Wday = wday(Policy.Start.Date, label = TRUE)
+    )
+```
+
+## Imputacion de ausentes
+
+Numericas: promedio de la columna. Categoricas: moda .Repito aqui la advertencia de las columnas `Previous.Claims` y
+`Credit.Score` por su alta proporcion de ausentes.
+
+```{r imputacion}
+moda <- function(x) {
+    ux <- na.omit(unique(x))
+    ux[which.max(tabulate(match(x, ux)))]
+}
+
+df <- df |>
+    mutate(across(all_of(numeric_vars), ~ replace_na(., mean(., na.rm = TRUE)))) |>
+    mutate(across(all_of(categorical_vars), ~ replace_na(., moda(.))))
+
+# verificacion: deberian quedar todas en 0
+df |>
+    summarise(across(everything(), ~ sum(is.na(.)), .names = "NA_{.col}"))
+```
+
+## Conclusiones (pendiente)
+
+_Me que da pendiente Completar con las interpretaciones a partir de los graficos y la matriz de
+correlacion de arriba._
