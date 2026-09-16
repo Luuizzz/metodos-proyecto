@@ -2,39 +2,132 @@
 title: "EDA - Insurance Premium Prediction (Kaggle)"
 author: "Juan Luis Castillo Giovannetty y Alejandro de Jesus Cotes Fornaris"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+    theme: flatly
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 8,
+  fig.height = 5
+)
+set.seed(42)
 ```
 
-## Contexto
+---
 
-Dataset de la competencia de Kaggle "Regression with an Insurance Dataset"
-(Playground Series). Es un dataset sintetico generado con un modelo de deep
-learning entrenado sobre el dataset original de prediccion de primas de
-seguro. El target es `Premium.Amount` (continuo) y la metrica de evaluacion
-de la competencia es RMSLE, lo que motiva mirar tambien la escala
-logaritmica del target.
+## Resumen
+
+El presente trabajo constituye un análisis exploratorio de datos (EDA) aplicado al conjunto de datos sintético de la competencia *Regression with an Insurance Dataset* de Kaggle (Playground Series). El objetivo central es examinar la estructura estadística de las variables predictoras, identificar patrones de datos ausentes, evaluar supuestos de distribución y cuantificar las relaciones entre los predictores y la variable objetivo `Premium.Amount` mediante correlaciones y pruebas de hipótesis formales. El análisis emplea técnicas paramétricas y no paramétricas según el cumplimiento de los supuestos correspondientes, complementadas con medidas de tamaño del efecto que permiten distinguir la relevancia estadística de la relevancia práctica.
+
+**Palabras clave:** análisis exploratorio de datos, prima de seguro, pruebas de hipótesis, correlación de Pearson, datos faltantes, tamaño del efecto.
+
+---
+
+## Introducción
+
+### Contexto
+
+Dataset de la competencia de Kaggle "Regression with an Insurance Dataset" (Playground Series). Es un dataset sintético generado con un modelo de deep learning entrenado sobre el dataset original de predicción de primas de seguro. El target es `Premium.Amount` (continuo) y la métrica de evaluación de la competencia es RMSLE, lo que motiva mirar también la escala logarítmica del target durante el análisis exploratorio.
+
+### Planteamiento del problema
+
+La determinación del monto de la prima de seguro es un proceso crítico en la industria aseguradora, ya que incide directamente en la viabilidad financiera de las compañías y en la accesibilidad del servicio para los asegurados. Sin embargo, la complejidad de los factores involucrados —variables demográficas, conductuales, históricas y contractuales— dificulta la comprensión de su contribución individual y conjunta al valor final de la prima. En este contexto, se plantea la siguiente pregunta de investigación: ¿cuáles son las variables con mayor asociación estadística con el monto de la prima de seguro, y qué diferencias significativas se observan entre grupos relevantes de asegurados?
+
+### Justificación
+
+El uso de técnicas estadísticas formales para explorar las relaciones en un dataset de predicción es un paso indispensable antes de cualquier análisis inferencial adicional. Un EDA riguroso permite identificar patrones de distribución, detectar multicolinealidad entre predictores, revelar transformaciones necesarias y formular hipótesis que guíen el análisis posterior. Además, la naturaleza sintética del dataset —construida a partir de datos reales de seguros— hace que sus distribuciones y relaciones reproduzcan patrones del fenómeno original, lo que da sentido práctico a los hallazgos obtenidos.
+
+---
+
+## Objetivos
+
+### Objetivo general
+
+Analizar la estructura estadística del conjunto de datos de predicción de primas de seguro de Kaggle, con el fin de identificar los factores más asociados al monto de la prima mediante la exploración de distribuciones, correlaciones y pruebas de hipótesis.
+
+### Objetivos específicos
+
+1. **Identificar** la distribución de la variable objetivo `Premium.Amount`, el patrón de datos ausentes por columna y el perfil dimensional general del conjunto de datos.
+2. **Caracterizar** las distribuciones univariadas de las variables numéricas y categóricas, incluyendo estadísticos de centralidad, dispersión y forma.
+3. **Comparar** el monto de la prima de seguro entre grupos definidos por variables de comportamiento (estado de fumador) y variables contractuales (tipo de póliza), mediante pruebas no paramétricas.
+4. **Determinar** la existencia, dirección y magnitud de las correlaciones entre las variables continuas del dataset y la prima de seguro mediante técnicas de correlación apropiadas según el cumplimiento de sus supuestos.
+5. **Evaluar** la relevancia estadística y práctica de las diferencias y asociaciones observadas a través de pruebas de hipótesis formales y medidas de tamaño del efecto.
+
+---
+
+## Metodología
+
+### Enfoque y diseño
+
+El estudio adopta un enfoque cuantitativo de corte transversal, orientado al análisis descriptivo e inferencial de un dataset observacional. No se plantea una relación causal, sino la identificación de asociaciones estadísticas relevantes para la comprensión del monto de la prima de seguro.
+
+### Fuente de datos
+
+El dataset corresponde a la competencia *Playground Series — Regression with an Insurance Dataset* de Kaggle. Se trata de datos sintéticos generados mediante un modelo de deep learning entrenado sobre datos reales de seguros. El conjunto de entrenamiento (`train.csv`) constituye la fuente exclusiva de análisis.
+
+### Variables
+
+El dataset incluye las siguientes categorías de variables:
+
+- **Variable objetivo:** `Premium.Amount` (numérica continua, en USD).
+- **Variables numéricas predictoras:** `Age`, `Annual.Income`, `Health.Score`, `Number.of.Dependents`, `Previous.Claims`, `Vehicle.Age`, `Credit.Score`, `Insurance.Duration`.
+- **Variables categóricas predictoras:** `Gender`, `Marital.Status`, `Education.Level`, `Occupation`, `Location`, `Policy.Type`, `Customer.Feedback`, `Smoking.Status`, `Exercise.Frequency`, `Property.Type`.
+- **Variable temporal:** `Policy.Start.Date`.
+
+### Preparación de los datos
+
+Los registros con cadenas vacías en variables categóricas fueron convertidos a `NA` para garantizar un conteo correcto de ausentes. Las variables numéricas con datos faltantes fueron imputadas con la media de la columna; las categóricas, con la moda. Dos variables presentaron porcentajes de ausentes destacados: `Previous.Claims` (~30 %) y `Credit.Score` (~11 %), para las cuales se advierte que la imputación por promedio reduce artificialmente su varianza y puede atenuar sus correlaciones reales con el target.
+
+### Técnicas estadísticas
+
+El análisis emplea: estadística descriptiva univariada; ingeniería de características (transformación logarítmica, agrupación de variables continuas); gráficos de distribución (histogramas, boxplots, Q-Q plots); mapa de calor de correlaciones de Pearson; pruebas de normalidad seleccionadas según el tamaño de muestra (Kolmogorov-Smirnov estandarizado y Lilliefors para la distribución global, Shapiro-Wilk sobre muestra aleatoria para análisis por grupo); prueba de Levene para igualdad de varianzas; correlación de Pearson con verificación de supuestos e intervalo de confianza; prueba de Mann-Whitney U para comparación de dos grupos independientes con r de rango-biserial como tamaño del efecto; prueba de Kruskal-Wallis con η² como tamaño del efecto y comparaciones post-hoc de Wilcoxon por pares (corrección Bonferroni) únicamente cuando la prueba global resulte significativa; y prueba chi-cuadrado con V de Cramér para asociaciones entre variables categóricas.
+
+### Nivel de significancia
+
+Se adopta α = 0.05 para todas las pruebas de hipótesis. Dado el tamaño muestral, se reporta sistemáticamente el tamaño del efecto junto al p-valor, ya que con muestras muy grandes incluso diferencias de pequeña magnitud pueden resultar estadísticamente significativas. Por esta razón, la interpretación considera tanto la evidencia estadística como la magnitud práctica del efecto.
+
+### Herramientas
+
+El análisis se desarrolla íntegramente en R (versión ≥ 4.0), utilizando los paquetes `tidyverse`, `Amelia`, `nortest`, `car` y `rstatix`. El documento es reproducible mediante `knitr`.
+
+---
 
 ## Carga de datos
 
 ```{r carga}
 library(tidyverse)
 library(Amelia)
+library(nortest)
+library(car)
+library(rstatix)
 
-train <- read.csv("~/GitHub/metodos-proyecto/train.csv")
+if (!file.exists("train.csv")) {
+    stop("No se encontró 'train.csv'. Coloque el archivo train.csv en la misma carpeta del Rmd antes de ejecutar Knit.")
+}
+
+train <- read.csv("train.csv")
 dim(train)
 str(train)
 df <- train
+n_original <- nrow(df)
+p_original <- ncol(df)
 ```
+
+El dataset original contiene `r n_original` observaciones y `r p_original` variables. La variable objetivo `Premium.Amount` es continua; las demás incluyen un identificador (`id`), variables numéricas, categóricas y una marca temporal (`Policy.Start.Date`).
+
+---
 
 ## Limpieza previa: `""` como ausente
 
-Varias columnas categoricas (por ejemplo `Occupation`) usan strings vacios
-`""` en vez de `NA`, por lo que `is.na()` no las detecta. Se normalizan antes
-de cualquier conteo de ausentes.
+Varias columnas categóricas (por ejemplo `Occupation`) usan strings vacíos `""` en vez de `NA`, por lo que `is.na()` no las detecta. Se normalizan antes de cualquier conteo de ausentes.
 
 ```{r limpieza}
 df <- df |>
@@ -48,6 +141,8 @@ categorical_vars <- c("Gender", "Marital.Status", "Education.Level", "Occupation
                        "Smoking.Status", "Exercise.Frequency", "Property.Type")
 ```
 
+---
+
 ## Datos ausentes
 
 ```{r missing}
@@ -57,23 +152,56 @@ df |>
 missmap(df)
 ```
 
-**Nota importante:** `Previous.Claims` (~30% NA) y `Credit.Score` (~11% NA)
-son, por lejos, las columnas con mas ausentes. Cualquier interpretacion sobre
-su relacion con `Premium.Amount` mas adelante sera tomada con cautela: la
-imputacion por promedio que se aplica al final del documento aplana
-artificialmente su varianza y puede debilitar una correlacion que en los
-datos reales sea mas fuerte. Es decir, si estas dos variables aparecen como
-"poco relevantes" en el EDA, eso podria ser un efecto de la imputacion y no
-del fenomeno real.
+```{r ausentes_tabla}
+na_resumen <- df |>
+  summarise(across(everything(), ~ sum(is.na(.)))) |>
+  pivot_longer(everything(), names_to = "Variable", values_to = "N_ausentes") |>
+  mutate(Porcentaje = round(N_ausentes / nrow(df) * 100, 2)) |>
+  filter(N_ausentes > 0) |>
+  arrange(desc(Porcentaje))
+
+knitr::kable(na_resumen,
+             caption = "Variables con datos ausentes (pre-imputación)",
+             col.names = c("Variable", "N ausentes", "% ausente"))
+```
+
+**Interpretación del mapa de ausentes:** el `missmap` permite identificar visualmente que la ausencia de información no se distribuye de manera uniforme entre las variables. `Previous.Claims` (~30 % de ausentes) concentra el mayor problema de completitud y `Credit.Score` (~11 %) ocupa el segundo lugar. En las demás variables la proporción de ausentes es considerablemente menor. Por esta razón, cualquier interpretación posterior sobre la relación de `Previous.Claims` y `Credit.Score` con `Premium.Amount` debe hacerse con cautela: la imputación por promedio aplana artificialmente su varianza y puede debilitar una asociación que en los datos sin imputar podría ser distinta.
+
+---
 
 ## Resumen univariado de predictores
 
-Antes de cruzar cada variable con el target, conviene conocer su propia
-distribucion.
+Antes de cruzar cada variable con el target, conviene conocer su propia distribución.
+
+### Variables numéricas
 
 ```{r univariado-numericas}
 summary(df[, numeric_vars])
 ```
+
+```{r descriptivos_tabla}
+desc_num <- df |>
+  select(all_of(numeric_vars)) |>
+  pivot_longer(everything(), names_to = "Variable", values_to = "Valor") |>
+  group_by(Variable) |>
+  summarise(
+    N       = sum(!is.na(Valor)),
+    Media   = round(mean(Valor, na.rm = TRUE), 2),
+    DE      = round(sd(Valor, na.rm = TRUE), 2),
+    Mediana = round(median(Valor, na.rm = TRUE), 2),
+    IQR     = round(IQR(Valor, na.rm = TRUE), 2),
+    Minimo  = round(min(Valor, na.rm = TRUE), 2),
+    Maximo  = round(max(Valor, na.rm = TRUE), 2)
+  )
+
+knitr::kable(desc_num,
+             caption = "Estadísticos descriptivos — variables numéricas (pre-imputación)",
+             align = "lrrrrrrr")
+```
+
+La tabla muestra que `Annual.Income` presenta la mayor dispersión absoluta (DE elevada), mientras que `Health.Score` muestra una distribución con media y mediana más próximas, sugiriendo menor asimetría. Variables como `Number.of.Dependents` y `Vehicle.Age` tienen rangos acotados, mientras que `Credit.Score` e `Insurance.Duration` presentan distribuciones de escala moderada.
+
+### Variables categóricas
 
 ```{r univariado-categoricas}
 for (v in categorical_vars) {
@@ -82,69 +210,207 @@ for (v in categorical_vars) {
 }
 ```
 
+Las tablas de frecuencia revelan que `Gender` y `Smoking.Status` presentan distribuciones relativamente equilibradas entre sus categorías. `Policy.Type` incluye tres opciones (Basic, Comprehensive, Premium), y `Occupation` concentra la mayor cantidad de categorías y también el mayor número de ausentes entre las variables categóricas.
+
+---
+
 ## Variable objetivo: `Premium.Amount`
 
 ```{r target}
 ggplot(df, aes(x = Premium.Amount)) +
-    geom_histogram(bins = 50) +
-    labs(title = "Distribucion de Premium.Amount")
+    geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+    labs(title = "Distribución de Premium.Amount",
+         x = "Prima de seguro (USD)", y = "Frecuencia")
 
 ggplot(df, aes(x = log1p(Premium.Amount))) +
-    geom_histogram(bins = 50) +
-    labs(title = "Distribucion de log(1 + Premium.Amount)")
+    geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+    labs(title = "Distribución de log(1 + Premium.Amount)",
+         x = "log(1 + Prima)", y = "Frecuencia")
 ```
 
-## Numericas vs target
+```{r target_stats}
+media_premium   <- round(mean(df$Premium.Amount, na.rm = TRUE), 2)
+mediana_premium <- round(median(df$Premium.Amount, na.rm = TRUE), 2)
+sd_premium      <- round(sd(df$Premium.Amount, na.rm = TRUE), 2)
+iqr_premium     <- round(IQR(df$Premium.Amount, na.rm = TRUE), 2)
+min_premium     <- round(min(df$Premium.Amount, na.rm = TRUE), 2)
+max_premium     <- round(max(df$Premium.Amount, na.rm = TRUE), 2)
+```
+
+**Interpretación de los histogramas:** en la escala original, `Premium.Amount` presenta una concentración importante de observaciones en valores bajos y medios, junto con una cola prolongada hacia valores altos. Esto se refleja en una media de `r media_premium` USD superior a la mediana de `r mediana_premium` USD, confirmando asimetría positiva. La desviación estándar es `r sd_premium` USD y el IQR es `r iqr_premium` USD, lo que evidencia una dispersión amplia. Al aplicar `log(1 + Premium.Amount)`, la cola derecha se comprime y la distribución se vuelve visualmente más simétrica. La transformación mejora la representación gráfica de la variable, aunque no se interpreta como prueba de normalidad.
+
+---
+
+## Análisis bivariado
+
+### Variables numéricas vs target
 
 ```{r numericas-vs-target}
+# Para agilizar el renderizado de los gráficos se utiliza una muestra reproducible.
+# Las pruebas estadísticas posteriores se realizan con el dataset completo.
+set.seed(42)
+df_plot <- df |>
+    slice_sample(n = min(10000, nrow(df)))
+
 for (v in numeric_vars) {
-    p <- ggplot(df, aes(x = .data[[v]], y = Premium.Amount)) +
-        geom_point(alpha = 0.05) +
-        labs(title = paste("Premium.Amount vs", v))
+    p <- ggplot(df_plot, aes(x = .data[[v]], y = Premium.Amount)) +
+        geom_point(alpha = 0.08, color = "steelblue", size = 0.8) +
+        geom_smooth(method = "lm", se = FALSE, color = "firebrick", linewidth = 0.8) +
+        labs(title = paste("Premium.Amount vs", v),
+             x = v, y = "Prima (USD)")
     print(p)
 }
 ```
 
-### Correlacion entre numericas (chequeo de multicolinealidad)
+Para que el documento se ejecute de forma eficiente, los diagramas se construyen sobre una muestra reproducible de 10 000 observaciones; las pruebas estadísticas posteriores utilizan el conjunto de datos completo.
+
+```{r interpretacion-numericas-vs-target}
+cor_exploratorias <- tibble(
+  Variable = numeric_vars,
+  r = sapply(numeric_vars, function(v) {
+    cor(df[[v]], df$Premium.Amount, use = "complete.obs")
+  })
+) |>
+  mutate(
+    r = round(r, 4),
+    Direccion = case_when(
+      r > 0 ~ "positiva",
+      r < 0 ~ "negativa",
+      TRUE ~ "nula"
+    ),
+    Magnitud = case_when(
+      abs(r) < 0.10 ~ "insignificante",
+      abs(r) < 0.30 ~ "débil",
+      abs(r) < 0.50 ~ "moderada",
+      TRUE ~ "alta"
+    )
+  )
+
+knitr::kable(
+  cor_exploratorias,
+  caption = "Lectura exploratoria de los diagramas de dispersión",
+  col.names = c("Variable", "r", "Dirección", "Magnitud")
+)
+```
+
+**Interpretación de los diagramas:** las nubes de puntos muestran una dispersión vertical amplia para todos los predictores, por lo que ninguna variable numérica presenta visualmente una relación lineal fuerte con `Premium.Amount`. Las rectas ajustadas son casi horizontales cuando el coeficiente exploratorio se aproxima a cero. La tabla anterior permite interpretar cada gráfico de forma individual: el signo de `r` indica la dirección de la recta y su valor absoluto resume la intensidad lineal observada. Estas correlaciones son descriptivas; únicamente `Health.Score` y `Age` se someten posteriormente a comprobación formal de supuestos e inferencia con Pearson.
+
+### Correlación entre variables numéricas (chequeo de multicolinealidad)
 
 ```{r correlacion}
 cor_matrix <- df |>
     select(all_of(numeric_vars), Premium.Amount) |>
     cor(use = "pairwise.complete.obs")
-print(cor_matrix)
+print(round(cor_matrix, 3))
 ```
 
-## Categoricas vs target
+```{r correlacion_heatmap}
+cor_long <- cor_matrix |>
+  as.data.frame() |>
+  rownames_to_column("var1") |>
+  pivot_longer(-var1, names_to = "var2", values_to = "r")
+
+ggplot(cor_long, aes(x = var1, y = var2, fill = r)) +
+  geom_tile(color = "white") +
+  geom_text(aes(label = round(r, 2)), size = 2.5, color = "black") +
+  scale_fill_gradient2(low = "steelblue", mid = "white", high = "firebrick",
+                       midpoint = 0, limits = c(-1, 1),
+                       name = "r Pearson") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title  = element_blank()) +
+  labs(title = "Mapa de calor — correlaciones (Pearson, pairwise complete obs)")
+```
+
+**Interpretación del mapa de calor:** los colores cercanos al centro de la escala y los coeficientes próximos a cero indican asociaciones lineales débiles entre la mayoría de pares de variables. En particular, las correlaciones de los predictores numéricos con `Premium.Amount` son pequeñas, por lo que no se observa un predictor continuo que domine linealmente al target. Tampoco se aprecia un patrón de correlaciones extremadamente altas entre predictores que sugiera colinealidad lineal severa. Esta lectura es exploratoria; las correlaciones inferenciales seleccionadas se evalúan posteriormente con sus supuestos.
+
+### Variables categóricas vs target
 
 ```{r categoricas-vs-target}
 for (v in categorical_vars) {
     p <- ggplot(df, aes(x = .data[[v]], y = Premium.Amount)) +
-        geom_boxplot() +
-        labs(title = paste("Premium.Amount por", v)) +
+        geom_boxplot(fill = "steelblue", alpha = 0.7, outlier.alpha = 0.1) +
+        labs(title = paste("Premium.Amount por", v),
+             x = v, y = "Prima (USD)") +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
     print(p)
 }
 ```
 
-## `Policy.Start.Date`
+```{r interpretacion-categoricas-vs-target}
+resumen_cat <- map_dfr(categorical_vars, function(v) {
+  tmp <- df |>
+    filter(!is.na(.data[[v]])) |>
+    group_by(Categoria = .data[[v]]) |>
+    summarise(
+      Mediana = median(Premium.Amount, na.rm = TRUE),
+      Media = mean(Premium.Amount, na.rm = TRUE),
+      .groups = "drop"
+    )
 
-Se convierte a fecha real y se extraen componentes temporales que podrian
-capturar estacionalidad.
+  tibble(
+    Variable = v,
+    Mediana_min = round(min(tmp$Mediana), 2),
+    Mediana_max = round(max(tmp$Mediana), 2),
+    Diferencia_mediana = round(max(tmp$Mediana) - min(tmp$Mediana), 2)
+  )
+})
+
+knitr::kable(
+  resumen_cat,
+  caption = "Resumen para la interpretación de los boxplots categóricos",
+  col.names = c("Variable", "Mediana mínima", "Mediana máxima", "Diferencia entre medianas")
+)
+```
+
+**Interpretación de los boxplots:** en cada gráfico se comparan la mediana, el rango intercuartílico y la dispersión de `Premium.Amount` entre las categorías de una misma variable. La tabla anterior cuantifica la separación visual entre medianas para **cada** boxplot. Una diferencia visual pequeña y cajas ampliamente superpuestas sugiere que las distribuciones son similares; una mayor separación de medianas señala una posible diferencia que debe comprobarse formalmente. Estos gráficos no se utilizan por sí solos para declarar significancia estadística. `Smoking.Status` y `Policy.Type` se analizan formalmente más adelante mediante Mann-Whitney y Kruskal-Wallis, respectivamente.
+
+### `Policy.Start.Date`
+
+Se convierte a fecha real y se extraen componentes temporales que podrían capturar estacionalidad.
 
 ```{r fecha}
 df <- df |>
     mutate(
-        Policy.Start.Date = as.POSIXct(Policy.Start.Date),
-        Policy.Start.Year = year(Policy.Start.Date),
+        Policy.Start.Date  = as.POSIXct(Policy.Start.Date),
+        Policy.Start.Year  = year(Policy.Start.Date),
         Policy.Start.Month = month(Policy.Start.Date),
-        Policy.Start.Wday = wday(Policy.Start.Date, label = TRUE)
+        Policy.Start.Wday  = wday(Policy.Start.Date, label = TRUE)
     )
 ```
 
-## Imputacion de ausentes
+```{r fecha_plots}
+ggplot(df, aes(x = factor(Policy.Start.Month), y = Premium.Amount)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.7, outlier.alpha = 0.05) +
+  labs(title = "Prima de seguro por mes de inicio de póliza",
+       x = "Mes", y = "Prima (USD)")
 
-Numericas: promedio de la columna. Categoricas: moda .Repito aqui la advertencia de las columnas `Previous.Claims` y
-`Credit.Score` por su alta proporcion de ausentes.
+ggplot(df, aes(x = Policy.Start.Wday, y = Premium.Amount)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.7, outlier.alpha = 0.05) +
+  labs(title = "Prima de seguro por día de la semana (inicio de póliza)",
+       x = "Día de la semana", y = "Prima (USD)")
+```
+
+```{r fecha_interpretacion}
+resumen_mes <- df |>
+  group_by(Policy.Start.Month) |>
+  summarise(Mediana = median(Premium.Amount), .groups = "drop")
+
+resumen_dia <- df |>
+  group_by(Policy.Start.Wday) |>
+  summarise(Mediana = median(Premium.Amount), .groups = "drop")
+
+rango_mediana_mes <- round(max(resumen_mes$Mediana) - min(resumen_mes$Mediana), 2)
+rango_mediana_dia <- round(max(resumen_dia$Mediana) - min(resumen_dia$Mediana), 2)
+```
+
+**Interpretación de los gráficos temporales:** en el boxplot por mes, las cajas permiten comparar si existe un desplazamiento sistemático de la prima a lo largo del año. La diferencia entre la mayor y la menor mediana mensual es de `r rango_mediana_mes` USD. En el gráfico por día de la semana, la diferencia entre medianas extremas es de `r rango_mediana_dia` USD. Cuando las cajas se superponen ampliamente y estas diferencias son pequeñas frente a la dispersión total de `Premium.Amount`, la evidencia visual de estacionalidad es limitada. Estos gráficos son exploratorios y no equivalen a una prueba formal de diferencias.
+
+---
+
+## Imputación de ausentes
+
+Numéricas: promedio de la columna. Categóricas: moda. Se reitera la advertencia sobre `Previous.Claims` y `Credit.Score` por su alta proporción de ausentes.
 
 ```{r imputacion}
 moda <- function(x) {
@@ -161,7 +427,617 @@ df |>
     summarise(across(everything(), ~ sum(is.na(.)), .names = "NA_{.col}"))
 ```
 
-## Conclusiones (pendiente)
+Tras la imputación, el dataset queda libre de valores ausentes y disponible para los análisis siguientes.
 
-_Me que da pendiente Completar con las interpretaciones a partir de los graficos y la matriz de
-correlacion de arriba._
+---
+
+## Ingeniería de características
+
+Se crean nuevas variables derivadas de las existentes cuando la transformación aporta valor analítico: mejora la simetría de la distribución, habilita pruebas que requieren variables categóricas o extrae información latente de variables continuas.
+
+```{r feature_engineering}
+df <- df |>
+  mutate(
+    # Transformacion logaritmica del target: corrige asimetria positiva
+    log_premium = log1p(Premium.Amount),
+
+    # Grupos de edad: facilita analisis de asociacion categorica
+    Age_Group = cut(
+      Age,
+      breaks = c(0, 30, 50, Inf),
+      labels = c("Joven (<30)", "Adulto (30-50)", "Mayor (>50)"),
+      right  = FALSE
+    ),
+
+    # Cuartiles de ingreso anual
+    Income_Q = cut(
+      Annual.Income,
+      breaks = quantile(Annual.Income, probs = c(0, 0.25, 0.50, 0.75, 1)),
+      labels = c("Q1", "Q2", "Q3", "Q4"),
+      include.lowest = TRUE
+    )
+  )
+```
+
+```{r fe_verificacion}
+# Verificar la transformacion logaritmica
+ggplot(df, aes(x = log_premium)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  labs(title = "Distribución de log(1 + Premium.Amount)",
+       x = "log(1 + Prima)", y = "Frecuencia")
+
+# Distribucion de grupos de edad
+knitr::kable(table(df$Age_Group),
+             caption = "Frecuencia por grupo de edad",
+             col.names = c("Grupo de edad", "n"))
+
+# Distribucion de cuartiles de ingreso
+knitr::kable(table(df$Income_Q),
+             caption = "Frecuencia por cuartil de ingreso",
+             col.names = c("Cuartil de ingreso", "n"))
+```
+
+```{r fe_boxplots}
+# Prima segun grupo de edad
+ggplot(df, aes(x = Age_Group, y = Premium.Amount, fill = Age_Group)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.05) +
+  labs(title = "Prima de seguro por grupo de edad",
+       x = "Grupo de edad", y = "Prima (USD)") +
+  theme(legend.position = "none")
+
+# Prima segun cuartil de ingreso
+ggplot(df, aes(x = Income_Q, y = Premium.Amount, fill = Income_Q)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.05) +
+  labs(title = "Prima de seguro por cuartil de ingreso anual",
+       x = "Cuartil de ingreso", y = "Prima (USD)") +
+  theme(legend.position = "none")
+```
+
+```{r fe_interpretacion}
+resumen_age_group <- df |>
+  group_by(Age_Group) |>
+  summarise(Mediana = round(median(Premium.Amount), 2),
+            IQR = round(IQR(Premium.Amount), 2), .groups = "drop")
+
+resumen_income_q <- df |>
+  group_by(Income_Q) |>
+  summarise(Mediana = round(median(Premium.Amount), 2),
+            IQR = round(IQR(Premium.Amount), 2), .groups = "drop")
+
+knitr::kable(resumen_age_group,
+             caption = "Mediana e IQR de la prima por grupo de edad")
+knitr::kable(resumen_income_q,
+             caption = "Mediana e IQR de la prima por cuartil de ingreso")
+```
+
+**Interpretación de los gráficos de ingeniería de características:** el histograma de `log_premium` confirma que la transformación comprime los valores altos y reduce la asimetría observada en la escala original. En los boxplots por grupo de edad y cuartil de ingreso, la comparación debe centrarse en la posición de las medianas y el solapamiento de los IQR; las tablas anteriores cuantifican ambas medidas. Si las medianas son próximas y las cajas se superponen ampliamente, no existe una separación visual fuerte de la prima entre esos grupos. La categorización se utiliza aquí con fines descriptivos y no implica por sí misma una asociación estadísticamente significativa.
+
+---
+
+## Evaluación de supuestos
+
+Esta sección evalúa los supuestos estadísticos necesarios para seleccionar correctamente las pruebas inferenciales.
+
+### Normalidad de `Premium.Amount`
+
+Dado el tamaño muestral (n = `r nrow(df)`), la prueba de Shapiro-Wilk no es aplicable directamente (requiere n ≤ 5 000). Se emplean la prueba de Kolmogorov-Smirnov estandarizada y la prueba de Lilliefors —extensión del KS para parámetros estimados desde la misma muestra—, complementadas con inspección visual del histograma y el Q-Q plot.
+
+```{r normalidad_premium}
+set.seed(42)
+df_muestra_norm <- df |> sample_n(min(10000, nrow(df)))
+
+ggplot(df_muestra_norm, aes(x = Premium.Amount)) +
+  geom_histogram(bins = 50, fill = "steelblue", color = "white") +
+  labs(title = "Histograma — Premium.Amount (muestra 10 000)",
+       x = "Prima (USD)", y = "Frecuencia")
+
+ggplot(df_muestra_norm, aes(sample = Premium.Amount)) +
+  geom_qq(alpha = 0.3, color = "steelblue") +
+  geom_qq_line(color = "firebrick") +
+  labs(title = "Q-Q Plot — Premium.Amount",
+       x = "Cuantiles teóricos (normal)", y = "Cuantiles muestrales")
+
+# Kolmogorov-Smirnov sobre datos estandarizados
+ks_premium <- ks.test(scale(df$Premium.Amount), "pnorm")
+ks_premium
+
+# Lilliefors
+lillie_premium <- nortest::lillie.test(df$Premium.Amount)
+lillie_premium
+```
+
+```{r normalidad_grupos}
+# Normalidad de Premium.Amount por grupo de Smoking.Status
+# Se usa KS sobre datos estandarizados (adecuado para n grande)
+# Shapiro-Wilk sobre una unica muestra aleatoria por grupo (n <= 5000)
+set.seed(42)
+df_norm_ks <- df |>
+  group_by(Smoking.Status) |>
+  summarise(
+    n      = n(),
+    est_ks = ks.test(scale(Premium.Amount), "pnorm")$statistic,
+    p_ks   = ks.test(scale(Premium.Amount), "pnorm")$p.value,
+    .groups = "drop"
+  )
+
+set.seed(42)
+df_norm_sw <- df |>
+  group_by(Smoking.Status) |>
+  group_modify(~ {
+    muestra <- sample(.x$Premium.Amount, min(5000, nrow(.x)))
+    sw_res  <- shapiro.test(muestra)
+    tibble(est_sw = round(sw_res$statistic, 4),
+           p_sw   = round(sw_res$p.value, 6))
+  })
+
+df_norm_grupos <- left_join(df_norm_ks, df_norm_sw, by = "Smoking.Status")
+
+knitr::kable(df_norm_grupos,
+             digits = 4,
+             caption = "Pruebas de normalidad por grupo de Smoking.Status (KS y Shapiro-Wilk sobre muestra)",
+             col.names = c("Grupo", "n", "D (KS)", "p (KS)", "W (SW)", "p (SW)"))
+```
+
+**Interpretación del histograma y Q-Q plot:** el histograma de la muestra conserva la asimetría positiva observada en el dataset completo. En el Q-Q plot, los puntos no siguen de manera estable la línea teórica, especialmente en las colas, lo que evidencia desviaciones de la normalidad. Las pruebas KS y Lilliefors son consistentes con esta inspección visual (KS: D = `r round(ks_premium$statistic, 4)`, p = `r format.pval(ks_premium$p.value, digits = 4, eps = 1e-4)`; Lilliefors: D = `r round(lillie_premium$statistic, 4)`, p = `r format.pval(lillie_premium$p.value, digits = 4, eps = 1e-4)`). El análisis por `Smoking.Status` muestra el mismo patrón. **Conclusión:** `Premium.Amount` no presenta un comportamiento aproximadamente normal, por lo que para las comparaciones grupales se prefieren pruebas no paramétricas.
+
+**Nota metodológica:** con n = `r nrow(df)`, cualquier prueba formal detectará incluso desviaciones triviales de la normalidad, produciendo p-valores prácticamente nulos. La decisión metodológica se fundamenta en la combinación del test formal con la inspección visual.
+
+### Homocedasticidad
+
+Dado que `Premium.Amount` no sigue una distribución normal, se utiliza la prueba de Levene (Brown-Forsythe) para evaluar la igualdad de varianzas, ya que es robusta ante la falta de normalidad.
+
+- **H₀:** las varianzas de los grupos son iguales.
+- **H₁:** las varianzas difieren entre al menos dos grupos.
+- **α = 0.05.**
+
+```{r homocedasticidad}
+# Dos grupos: Smoking.Status
+levene_smoke  <- car::leveneTest(Premium.Amount ~ Smoking.Status, data = df)
+levene_smoke
+
+# Tres grupos: Policy.Type
+levene_policy <- car::leveneTest(Premium.Amount ~ Policy.Type, data = df)
+levene_policy
+```
+
+```{r homo_vals}
+p_levene_smoke  <- round(levene_smoke[1, "Pr(>F)"], 6)
+p_levene_policy <- round(levene_policy[1, "Pr(>F)"], 6)
+```
+
+Para `Smoking.Status`, Levene obtuvo p = `r p_levene_smoke`; como p > 0.05, **no se rechaza H₀**, por lo que no hay evidencia de varianzas diferentes entre fumadores y no fumadores. Para `Policy.Type`, Levene obtuvo p = `r p_levene_policy`; nuevamente p > 0.05, por lo que **no se rechaza H₀** y la homogeneidad de varianzas resulta razonable. La elección de Mann-Whitney y Kruskal-Wallis en las comparaciones posteriores se fundamenta principalmente en la falta de normalidad de `Premium.Amount`, no en una supuesta desigualdad de varianzas.
+
+---
+
+## Correlaciones
+
+### Health.Score y Premium.Amount
+
+Antes de aplicar Pearson se verifican los supuestos:
+
+1. **Tipo de variables:** ambas son cuantitativas continuas.
+2. **Independencia:** las observaciones corresponden a pólizas distintas; se asume independencia por la estructura del dataset.
+3. **Linealidad:** se comprueba mediante el diagrama de dispersión y el ajuste lineal (`lm`). Se evalúa si la nube de puntos presenta una tendencia aproximadamente recta y sin curvaturas sistemáticas evidentes.
+4. **Valores extremos:** se evalúan visualmente a partir del mismo diagrama de dispersión.
+5. **Dispersión constante de residuos:** se verifica mediante el gráfico de residuos vs valores ajustados.
+6. **Normalidad:** `Premium.Amount` no presenta normalidad según las pruebas formales. Por ello, la decisión de utilizar Pearson no se fundamenta únicamente en la distribución marginal, sino en que la relación observada sea aproximadamente lineal, no existan valores extremos que alteren claramente la relación y la dispersión de los residuos sea aproximadamente constante. Si estas condiciones no fueran razonables, se consideraría Spearman.
+
+```{r correlacion_health}
+ggplot(df_plot, aes(x = Health.Score, y = Premium.Amount)) +
+  geom_point(alpha = 0.08, color = "steelblue", size = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "firebrick", linewidth = 0.8) +
+  labs(title = "Health.Score vs Premium.Amount — evaluación de linealidad",
+       x = "Puntaje de salud", y = "Prima (USD)")
+
+cor_health <- cor.test(df$Health.Score, df$Premium.Amount, method = "pearson")
+cor_health
+```
+
+```{r residuos_health}
+modelo_health <- lm(Premium.Amount ~ Health.Score, data = df)
+
+residuos_health <- data.frame(
+  ajustados = fitted(modelo_health),
+  residuos  = residuals(modelo_health)
+)
+
+set.seed(42)
+residuos_health_plot <- residuos_health |>
+  slice_sample(n = min(10000, nrow(residuos_health)))
+
+ggplot(residuos_health_plot, aes(x = ajustados, y = residuos)) +
+  geom_point(alpha = 0.05, color = "steelblue", size = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "firebrick") +
+  labs(title = "Residuos vs valores ajustados — Health.Score",
+       x = "Valores ajustados", y = "Residuos")
+```
+
+```{r cor_health_vals}
+r_health     <- round(cor_health$estimate[[1]], 4)
+p_cor_health <- cor_health$p.value
+ic_health    <- round(cor_health$conf.int, 4)
+magnitud_h3  <- ifelse(abs(r_health) < 0.10, "insignificante",
+                ifelse(abs(r_health) < 0.30, "débil",
+                ifelse(abs(r_health) < 0.50, "moderada",
+                ifelse(abs(r_health) < 0.70, "moderada-fuerte", "fuerte"))))
+direccion_h3 <- ifelse(r_health > 0, "positiva", "negativa")
+decision_h3 <- ifelse(
+  p_cor_health < 0.05,
+  "Se rechaza H₀. Existe evidencia estadística de una correlación lineal distinta de cero entre Health.Score y Premium.Amount; sin embargo, su magnitud es prácticamente nula.",
+  "No se rechaza H₀. No existe evidencia estadística suficiente de una correlación lineal distinta de cero entre Health.Score y Premium.Amount."
+)
+```
+
+**Interpretación de los gráficos:** la nube de puntos de `Health.Score` frente a `Premium.Amount` es muy dispersa y la recta de ajuste tiene una pendiente apenas perceptible, por lo que visualmente no se observa una relación lineal importante. En el gráfico de residuos, los puntos permanecen distribuidos alrededor de cero sin una forma sistemática marcada; por ello, la dispersión puede considerarse aproximadamente constante para este análisis. Estas condiciones hacen razonable utilizar Pearson para cuantificar la relación lineal.
+
+La correlación de Pearson entre `Health.Score` y `Premium.Amount` es r = `r r_health` (IC 95%: [`r ic_health[1]`, `r ic_health[2]`], p = `r format.pval(p_cor_health, digits = 4, eps = 1e-4)`), lo que indica una asociación **`r magnitud_h3`** y **`r direccion_h3`**. Aunque el p-valor es pequeño, la magnitud de r es prácticamente nula; por tanto, la significancia estadística no implica una relación lineal relevante en términos prácticos.
+
+### Age y Premium.Amount
+
+Se aplica el mismo proceso de verificación de supuestos: escala cuantitativa, independencia de observaciones, linealidad visual, valores extremos, dispersión de residuos y normalidad.
+
+```{r correlacion_age}
+ggplot(df_plot, aes(x = Age, y = Premium.Amount)) +
+  geom_point(alpha = 0.08, color = "steelblue", size = 0.5) +
+  geom_smooth(method = "lm", se = FALSE, color = "firebrick", linewidth = 0.8) +
+  labs(title = "Age vs Premium.Amount — evaluación de linealidad",
+       x = "Edad (años)", y = "Prima (USD)")
+
+cor_age <- cor.test(df$Age, df$Premium.Amount, method = "pearson")
+cor_age
+```
+
+```{r residuos_age}
+modelo_age <- lm(Premium.Amount ~ Age, data = df)
+
+residuos_age <- data.frame(
+  ajustados = fitted(modelo_age),
+  residuos  = residuals(modelo_age)
+)
+
+set.seed(42)
+residuos_age_plot <- residuos_age |>
+  slice_sample(n = min(10000, nrow(residuos_age)))
+
+ggplot(residuos_age_plot, aes(x = ajustados, y = residuos)) +
+  geom_point(alpha = 0.05, color = "steelblue", size = 0.5) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "firebrick") +
+  labs(title = "Residuos vs valores ajustados — Age",
+       x = "Valores ajustados", y = "Residuos")
+```
+
+```{r cor_age_vals}
+r_age      <- round(cor_age$estimate[[1]], 4)
+p_cor_age  <- cor_age$p.value
+ic_age     <- round(cor_age$conf.int, 4)
+magnitud_h4 <- ifelse(abs(r_age) < 0.10, "insignificante",
+               ifelse(abs(r_age) < 0.30, "débil",
+               ifelse(abs(r_age) < 0.50, "moderada",
+               ifelse(abs(r_age) < 0.70, "moderada-fuerte", "fuerte"))))
+direccion_h4 <- ifelse(r_age > 0, "positiva", "negativa")
+decision_h4 <- ifelse(
+  p_cor_age < 0.05,
+  "Se rechaza H₀. Existe evidencia estadística de una correlación lineal distinta de cero entre Age y Premium.Amount; sin embargo, su magnitud es prácticamente nula.",
+  "No se rechaza H₀. No existe evidencia estadística suficiente de una correlación lineal distinta de cero entre Age y Premium.Amount."
+)
+```
+
+**Interpretación de los gráficos:** la nube de puntos de `Age` frente a `Premium.Amount` tampoco muestra una pendiente visual relevante; la recta ajustada es prácticamente horizontal frente a la amplia dispersión de la prima. El gráfico de residuos se mantiene alrededor de cero sin un patrón sistemático marcado, por lo que la dispersión puede considerarse aproximadamente constante. Estas condiciones permiten utilizar Pearson como medida de asociación lineal.
+
+La correlación de Pearson entre `Age` y `Premium.Amount` es r = `r r_age` (IC 95%: [`r ic_age[1]`, `r ic_age[2]`], p = `r format.pval(p_cor_age, digits = 4, eps = 1e-4)`), indicando una asociación **`r magnitud_h4`** y **`r direccion_h4`**. El rechazo de H₀ se explica por el gran tamaño muestral, pero la magnitud observada es prácticamente nula y no representa una relación lineal de importancia práctica.
+
+---
+
+## Pruebas de hipótesis
+
+Para cada prueba se especifican las hipótesis, se comprueban los supuestos, se ejecuta la prueba y se interpreta la decisión junto con el tamaño del efecto.
+
+---
+
+### H1 — ¿Existen diferencias en la prima de seguro entre fumadores y no fumadores?
+
+**Hipótesis**
+
+- H₀: La distribución de la prima de seguro es igual en fumadores y no fumadores.
+- H₁: La distribución de la prima de seguro difiere entre fumadores y no fumadores.
+
+**Nivel de significancia:** α = 0.05.
+
+**Comprobación de supuestos:** la normalidad fue rechazada en ambos grupos (sección anterior). Levene obtuvo p = `r p_levene_smoke`, por lo que no hay evidencia de varianzas diferentes. Debido principalmente a la falta de normalidad, se emplea la **prueba de Mann-Whitney U** (Wilcoxon de dos muestras independientes).
+
+```{r h1_boxplot}
+ggplot(df, aes(x = Smoking.Status, y = Premium.Amount, fill = Smoking.Status)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.05) +
+  labs(title = "Prima de seguro según estado de fumador",
+       x = "Estado de fumador", y = "Prima (USD)") +
+  theme(legend.position = "none")
+```
+
+```{r h1_wilcox}
+wilcox_smoke <- wilcox.test(Premium.Amount ~ Smoking.Status, data = df)
+wilcox_smoke
+```
+
+```{r h1_effectsize}
+effsize_smoke <- rstatix::wilcox_effsize(df, Premium.Amount ~ Smoking.Status)
+effsize_smoke
+```
+
+```{r h1_vals}
+p_h1                 <- wilcox_smoke$p.value
+r_smoke_val          <- round(effsize_smoke$effsize, 4)
+r_smoke_magn         <- as.character(effsize_smoke$magnitude)
+smoke_yes            <- df$Premium.Amount[df$Smoking.Status == "Yes"]
+smoke_no             <- df$Premium.Amount[df$Smoking.Status == "No"]
+mediana_fumadores    <- round(median(smoke_yes), 2)
+mediana_no_fumadores <- round(median(smoke_no),  2)
+media_fumadores      <- round(mean(smoke_yes), 2)
+media_no_fumadores   <- round(mean(smoke_no),  2)
+w_h1_fmt              <- format(round(as.numeric(wilcox_smoke$statistic), 0),
+                                big.mark = ",", scientific = FALSE, trim = TRUE)
+p_h1_fmt              <- format.pval(p_h1, digits = 4, eps = 1e-4)
+r_smoke_fmt           <- formatC(r_smoke_val, format = "f", digits = 4)
+decision_h1 <- ifelse(
+  p_h1 < 0.05,
+  "Se rechaza H₀. Existe evidencia estadística de diferencias en la distribución de la prima entre fumadores y no fumadores.",
+  "No se rechaza H₀. No existe evidencia estadística suficiente para afirmar que la distribución de la prima difiere entre fumadores y no fumadores."
+)
+```
+
+**Interpretación del boxplot:** las cajas de fumadores y no fumadores presentan un alto grado de solapamiento y la mediana es `r mediana_fumadores` USD en fumadores y `r mediana_no_fumadores` USD en no fumadores. La similitud visual entre las distribuciones anticipa una diferencia pequeña o inexistente.
+
+**Resultado:** W = `r w_h1_fmt`, p = `r p_h1_fmt`. La media es `r media_fumadores` USD en fumadores y `r media_no_fumadores` USD en no fumadores. El tamaño del efecto de Wilcoxon es r = `r r_smoke_fmt`, clasificado por la función como **`r r_smoke_magn`**; numéricamente se encuentra muy próximo a cero.
+
+**Decisión:** `r decision_h1`
+
+---
+
+### H2 — ¿El tipo de póliza produce diferencias en la prima?
+
+**Hipótesis**
+
+- H₀: La distribución de la prima es igual en todos los tipos de póliza.
+- H₁: Al menos un tipo de póliza presenta una distribución de prima diferente.
+
+**Nivel de significancia:** α = 0.05.
+
+**Comprobación de supuestos:** la normalidad fue rechazada. Levene para `Policy.Type` obtuvo p = `r p_levene_policy`, por lo que no hay evidencia de varianzas distintas entre los tipos de póliza. Debido a la falta de normalidad, se emplea la **prueba de Kruskal-Wallis**.
+
+```{r h2_boxplot}
+ggplot(df, aes(x = Policy.Type, y = Premium.Amount, fill = Policy.Type)) +
+  geom_boxplot(alpha = 0.7, outlier.alpha = 0.05) +
+  labs(title = "Prima de seguro por tipo de póliza",
+       x = "Tipo de póliza", y = "Prima (USD)") +
+  theme(legend.position = "none")
+```
+
+```{r h2_kruskal}
+kw_policy <- kruskal.test(Premium.Amount ~ Policy.Type, data = df)
+kw_policy
+```
+
+```{r h2_posthoc}
+# El post-hoc solo se justifica si el Kruskal-Wallis global es significativo.
+if (kw_policy$p.value < 0.05) {
+  posthoc_policy <- pairwise.wilcox.test(
+    df$Premium.Amount,
+    df$Policy.Type,
+    p.adjust.method = "bonferroni"
+  )
+  posthoc_policy
+} else {
+  cat("No se realiza post-hoc: Kruskal-Wallis no fue significativo (p >= 0.05).")
+}
+```
+
+```{r h2_vals}
+p_h2 <- kw_policy$p.value
+
+medianas_policy <- df |>
+  group_by(Policy.Type) |>
+  summarise(Mediana = round(median(Premium.Amount), 2),
+            Media   = round(mean(Premium.Amount), 2)) |>
+  arrange(Mediana)
+
+knitr::kable(medianas_policy,
+             caption = "Medias y medianas de Premium.Amount por tipo de póliza")
+
+kw_effsize    <- rstatix::kruskal_effsize(df, Premium.Amount ~ Policy.Type)
+eta2_kw_val  <- round(kw_effsize$effsize, 4)
+eta2_kw_magn <- as.character(kw_effsize$magnitude)
+p_h2_fmt     <- format.pval(p_h2, digits = 4, eps = 1e-4)
+eta2_kw_fmt  <- formatC(eta2_kw_val, format = "f", digits = 4)
+decision_h2 <- ifelse(
+  p_h2 < 0.05,
+  "Se rechaza H₀. Al menos un tipo de póliza presenta una distribución de prima diferente.",
+  "No se rechaza H₀. No existe evidencia estadística suficiente para afirmar que la distribución de la prima difiere entre los tipos de póliza."
+)
+```
+
+**Interpretación del boxplot:** las medianas de `Premium`, `Comprehensive` y `Basic` son muy próximas y las cajas se superponen ampliamente. Por tanto, el gráfico no muestra una separación clara entre las distribuciones de prima por tipo de póliza.
+
+**Resultado:** H = `r round(kw_policy$statistic, 2)`, gl = `r kw_policy$parameter`, p = `r p_h2_fmt`. El tamaño del efecto de Kruskal-Wallis es η² = `r eta2_kw_fmt`, valor prácticamente nulo. Dado que la prueba global no es significativa cuando p ≥ 0.05, en ese caso no corresponde realizar ni interpretar comparaciones post-hoc.
+
+**Decisión:** `r decision_h2`
+
+---
+
+### H3 — ¿Existe correlación entre Health.Score y Premium.Amount?
+
+**Hipótesis**
+
+- H₀: r = 0 (no existe correlación lineal entre `Health.Score` y `Premium.Amount`).
+- H₁: r ≠ 0.
+
+**Nivel de significancia:** α = 0.05.
+
+**Supuestos verificados:** ambas variables son cuantitativas continuas; la independencia de las observaciones se justifica por la estructura del dataset; la linealidad se comprobó visualmente mediante el diagrama de dispersión y el ajuste lineal; no se evidencian valores extremos que alteren claramente la relación; y el gráfico de residuos no presenta un patrón sistemático marcado, por lo que la dispersión puede considerarse aproximadamente constante. Aunque `Premium.Amount` no presenta normalidad marginal, estas condiciones hacen razonable aplicar Pearson para evaluar la relación lineal.
+
+El resultado fue calculado en la sección de correlaciones: r = `r r_health`, IC 95% [`r ic_health[1]`, `r ic_health[2]`], p = `r format.pval(p_cor_health, digits = 4, eps = 1e-4)`.
+
+**Resultado:** La correlación de Pearson obtenida es r = `r r_health`, lo que indica una asociación `r magnitud_h3` y `r direccion_h3` entre el puntaje de salud y la prima de seguro.
+
+**Decisión:** `r decision_h3`
+
+---
+
+### H4 — ¿Existe correlación entre Age y Premium.Amount?
+
+**Hipótesis**
+
+- H₀: r = 0 (no existe correlación lineal entre `Age` y `Premium.Amount`).
+- H₁: r ≠ 0.
+
+**Nivel de significancia:** α = 0.05.
+
+**Supuestos verificados:** ambas variables son cuantitativas continuas; la independencia de las observaciones se justifica por la estructura del dataset; la linealidad se comprobó visualmente mediante el diagrama de dispersión y el ajuste lineal; no se evidencian valores extremos que alteren claramente la relación; y el gráfico de residuos no presenta un patrón sistemático marcado, por lo que la dispersión puede considerarse aproximadamente constante. Bajo estas condiciones, se considera razonable aplicar Pearson para evaluar la relación lineal.
+
+El resultado fue calculado en la sección de correlaciones: r = `r r_age`, IC 95% [`r ic_age[1]`, `r ic_age[2]`], p = `r format.pval(p_cor_age, digits = 4, eps = 1e-4)`.
+
+**Resultado:** La correlación de Pearson es r = `r r_age`, lo que indica una asociación `r magnitud_h4` y `r direccion_h4` entre la edad del asegurado y la prima de seguro.
+
+**Decisión:** `r decision_h4`
+
+---
+
+### H5 — ¿Existe asociación entre Smoking.Status y Exercise.Frequency?
+
+**Hipótesis**
+
+- H₀: `Smoking.Status` y `Exercise.Frequency` son independientes.
+- H₁: Existe asociación entre `Smoking.Status` y `Exercise.Frequency`.
+
+**Nivel de significancia:** α = 0.05.
+
+**Técnica:** tabla de contingencia + chi-cuadrado de Pearson. Se verifican las frecuencias esperadas antes de aceptar la validez del test.
+
+```{r h5_tabla}
+tabla_smoke_exercise <- table(df$Smoking.Status, df$Exercise.Frequency)
+knitr::kable(tabla_smoke_exercise,
+             caption = "Tabla de contingencia: Smoking.Status × Exercise.Frequency")
+```
+
+```{r h5_supuestos}
+chi2_temp <- chisq.test(tabla_smoke_exercise)
+esperadas <- chi2_temp$expected
+cat("Frecuencia esperada mínima:", round(min(esperadas), 2),
+    "| Todas >= 5:", all(esperadas >= 5), "\n")
+```
+
+```{r h5_chisq}
+chi2_smoke_exercise <- chisq.test(tabla_smoke_exercise)
+chi2_smoke_exercise
+
+n_h5          <- sum(tabla_smoke_exercise)
+chi2_v        <- chi2_smoke_exercise$statistic
+r_h5          <- nrow(tabla_smoke_exercise)
+k_h5          <- ncol(tabla_smoke_exercise)
+cramers_v_val <- round(sqrt(chi2_v / (n_h5 * (min(r_h5, k_h5) - 1))), 4)
+cat("V de Cramér:", cramers_v_val, "\n")
+```
+
+```{r h5_vals}
+p_h5       <- chi2_smoke_exercise$p.value
+mag_cramer <- ifelse(cramers_v_val < 0.10, "prácticamente nula",
+              ifelse(cramers_v_val < 0.30, "débil", "moderada"))
+decision_h5 <- ifelse(
+  p_h5 < 0.05,
+  paste0("Se rechaza H₀. Existe asociación estadísticamente significativa ",
+         "entre el estado de fumador y la frecuencia de ejercicio, aunque la V de Cramér = ",
+         cramers_v_val, " indica que la magnitud de la asociación es ", mag_cramer, "."),
+  paste0("No se rechaza H₀. No existe evidencia suficiente para afirmar que hay ",
+         "asociación entre el estado de fumador y la frecuencia de ejercicio.")
+)
+```
+
+**Interpretación de la tabla de contingencia:** las frecuencias observadas entre `Smoking.Status` y `Exercise.Frequency` son muy similares a las esperadas bajo independencia, lo que anticipa una asociación débil. Las frecuencias esperadas cumplen el criterio necesario para utilizar chi-cuadrado.
+
+**Resultado:** χ² = `r round(chi2_smoke_exercise$statistic, 2)`, gl = `r chi2_smoke_exercise$parameter`, p = `r format.pval(p_h5, digits = 4, eps = 1e-4)`. V de Cramér = `r cramers_v_val` (asociación `r mag_cramer`).
+
+**Decisión:** `r decision_h5`
+
+---
+
+## Resultados
+
+Los análisis realizados permiten resumir los hallazgos principales en correspondencia con cada objetivo específico:
+
+1. **Distribución del target (OE1):** `Premium.Amount` sigue una distribución asimétrica positiva con media = `r media_premium` USD, mediana = `r mediana_premium` USD e IQR = `r iqr_premium` USD. La transformación logarítmica reduce la asimetría de la distribución y resulta adecuada para análisis posteriores. Los datos ausentes se concentran en `Previous.Claims` y `Credit.Score`.
+
+2. **Caracterización univariada (OE2):** Las variables numéricas presentan distribuciones y escalas heterogéneas, con `Annual.Income` mostrando la mayor dispersión relativa. Las variables categóricas exhiben distribuciones generalmente equilibradas, con la excepción de `Occupation`, que registra tanto múltiples categorías como ausentes.
+
+3. **Comparación entre grupos (OE3):** Para `Smoking.Status`, Mann-Whitney obtuvo p = `r p_h1_fmt`; por tanto, no se encontró evidencia suficiente de diferencias en la distribución de la prima. Para `Policy.Type`, Kruskal-Wallis obtuvo p = `r p_h2_fmt`, por lo que tampoco se encontró evidencia suficiente de diferencias entre tipos de póliza. Los tamaños del efecto fueron muy próximos a cero.
+
+4. **Correlaciones (OE4):** `Health.Score` presentó r = `r r_health` y `Age` r = `r r_age`. En ambos casos la magnitud de la asociación lineal fue `r magnitud_h3`/`r magnitud_h4`, respectivamente. Aunque H3 y H4 presentan p < 0.05, los coeficientes son tan pequeños que su relevancia práctica es mínima.
+
+5. **Evaluación estadística (OE5):** H1, H2 y H5 **no rechazan H₀** a α = 0.05. H3 y H4 sí rechazan H₀, pero con correlaciones de magnitud prácticamente nula. La V de Cramér = `r cramers_v_val` entre `Smoking.Status` y `Exercise.Frequency` confirma una asociación `r mag_cramer`.
+
+---
+
+## Discusión
+
+Las comparaciones grupales no mostraron evidencia estadística de diferencias en la prima. Para `Smoking.Status`, las medianas fueron iguales y Mann-Whitney no fue significativo (p = `r p_h1_fmt`); además, el tamaño del efecto fue prácticamente nulo. Para `Policy.Type`, las medianas también fueron muy similares y Kruskal-Wallis no fue significativo (p = `r p_h2_fmt`), con η² prácticamente igual a cero. Por lo tanto, dentro de este dataset no se puede afirmar que estas dos variables produzcan diferencias en `Premium.Amount`.
+
+En las correlaciones, `Health.Score` (r = `r r_health`) y `Age` (r = `r r_age`) sí presentaron p-valores inferiores a 0.05, pero los coeficientes son prácticamente cero. Este resultado muestra la diferencia entre **significancia estadística** y **relevancia práctica**: con una muestra de `r nrow(df)` observaciones, asociaciones extremadamente pequeñas pueden resultar estadísticamente detectables sin representar una relación lineal importante.
+
+La V de Cramér obtenida entre `Smoking.Status` y `Exercise.Frequency` (V = `r cramers_v_val`) indica que la magnitud de la asociación entre ambas variables es `r mag_cramer`.
+
+La imputación por media en `Previous.Claims` (~30 % de ausentes) es la limitación más seria del análisis: aplana la varianza de esta variable y puede subestimar su correlación real con la prima.
+
+---
+
+## Limitaciones
+
+1. **Naturaleza sintética del dataset:** Los datos fueron generados mediante un modelo de deep learning, lo que puede introducir artefactos estadísticos (correlaciones atípicamente uniformes, ausencia de outliers reales, etc.). Los hallazgos no son directamente extrapolables a datos actuariales reales sin validación adicional.
+
+2. **Imputación simple:** La imputación por media en variables numéricas y por moda en categóricas preserva los valores centrales pero reduce artificialmente la varianza, especialmente en `Previous.Claims`. Esto puede sesgar correlaciones y tamaños del efecto hacia la nulidad.
+
+3. **Efecto del tamaño muestral sobre la inferencia:** Con n = `r nrow(df)`, asociaciones o diferencias de magnitud muy pequeña pueden alcanzar significancia estadística. En consecuencia, el p-valor debe interpretarse junto con el tamaño del efecto y los estadísticos descriptivos para evaluar la relevancia práctica.
+
+4. **Alcance exploratorio:** Este análisis es de carácter exploratorio. Las asociaciones identificadas no implican causalidad y los hallazgos deben considerarse como punto de partida para análisis estadísticos más profundos.
+
+5. **Interacciones no exploradas:** El análisis evalúa relaciones bivariadas pero no incluye interacciones entre variables (por ejemplo, `Age × Smoking.Status`), que podrían revelar asociaciones más complejas con el target.
+
+---
+
+## Conclusiones
+
+El presente análisis cumplió el objetivo general de examinar la estructura estadística del dataset de predicción de primas de seguro de Kaggle, identificando los factores más asociados al monto de la prima.
+
+En relación con los objetivos específicos:
+
+1. **Identificación (OE1):** El dataset original contiene `r n_original` observaciones y `r p_original` variables. `Premium.Amount` presenta asimetría positiva (media = `r media_premium` USD, mediana = `r mediana_premium` USD, IQR = `r iqr_premium` USD). Los datos ausentes se concentran en `Previous.Claims` (~30 %) y `Credit.Score` (~11 %).
+
+2. **Caracterización (OE2):** Las variables numéricas presentan rangos y escalas heterogéneas. La transformación logarítmica reduce la asimetría del target y resulta adecuada para análisis que requieran distribuciones más simétricas.
+
+3. **Comparación (OE3):** No se encontró evidencia estadística de diferencias en la prima según `Smoking.Status` (Mann-Whitney p = `r p_h1_fmt`) ni según `Policy.Type` (Kruskal-Wallis p = `r p_h2_fmt`). En ambos análisis los tamaños del efecto fueron prácticamente nulos, coherentes con el amplio solapamiento observado en los boxplots.
+
+4. **Correlaciones (OE4):** Tras verificar los supuestos de Pearson (escala cuantitativa, independencia, linealidad visual, comportamiento de residuos), se obtuvieron correlaciones `r magnitud_h4` para `Age` (r = `r r_age`, IC 95%: [`r ic_age[1]`, `r ic_age[2]`]) y `r magnitud_h3` para `Health.Score` (r = `r r_health`, IC 95%: [`r ic_health[1]`, `r ic_health[2]`]). Entre las variables continuas analizadas, ninguna presentó una asociación lineal de magnitud elevada con la prima.
+
+5. **Evaluación (OE5):** H1, H2 y H5 no rechazaron H₀ a α = 0.05. H3 y H4 sí rechazaron H₀, pero sus coeficientes de correlación fueron prácticamente nulos. La V de Cramér = `r cramers_v_val` entre `Smoking.Status` y `Exercise.Frequency` también indica una asociación `r mag_cramer`. En conjunto, los resultados no muestran relaciones bivariadas de magnitud elevada con la prima entre las variables evaluadas formalmente.
+
+---
+
+## Recomendaciones
+
+1. **Ampliación del análisis de asociaciones categóricas:** Extender la prueba chi-cuadrado con V de Cramér a todos los pares de variables categóricas del dataset, no solo a `Smoking.Status × Exercise.Frequency`, para construir un mapa completo de asociaciones entre variables cualitativas.
+
+2. **Análisis de varianza para las demás variables categóricas:** Aplicar Kruskal-Wallis a las variables categóricas que mostraron diferencias visuales en los boxplots (como `Education.Level`, `Customer.Feedback` y `Location`) para verificar si esas diferencias son estadísticamente significativas.
+
+3. **Ampliación del análisis de correlaciones:** Aplicar el mismo proceso de verificación de supuestos y correlación de Pearson (o Spearman si los supuestos no se cumplen) al resto de las variables continuas del dataset, no solo a `Health.Score` y `Age`.
+
+4. **Análisis de estacionalidad:** Aplicar una prueba de Kruskal-Wallis sobre `Policy.Start.Month` para determinar formalmente si el mes de inicio de la póliza produce diferencias estadísticamente significativas en la prima, complementando los gráficos exploratorios de la sección temporal.
+
+5. **Manejo más cuidadoso de los datos ausentes:** Considerar estrategias alternativas para `Previous.Claims` y `Credit.Score` más allá de la imputación por media, dado que esta aplana artificialmente la varianza y puede atenuar sus correlaciones reales con el target.
+
+---
+
+## Referencias
+
+Kaggle. (2024). *Playground Series — Regression with an Insurance Dataset*.
+
+Llinás Solano, H. (2019). *Estadística inferencial*. Universidad del Norte.
+
+Montgomery, D. C., Peck, E. A., & Vining, G. G. (2012). *Introducción al análisis de regresión lineal* (5.ª ed.). Wiley.
+
+Navidi, W. (2021). *Estadística para ingenieros y científicos* (7.ª ed.). McGraw-Hill.
