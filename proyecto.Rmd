@@ -88,7 +88,7 @@ Los registros con cadenas vacías en variables categóricas fueron convertidos a
 
 ### Técnicas estadísticas
 
-El análisis emplea: estadística descriptiva univariada; ingeniería de características (transformación logarítmica, agrupación de variables continuas); gráficos de distribución (histogramas, boxplots, Q-Q plots); mapa de calor de correlaciones de Pearson; pruebas de normalidad seleccionadas según el tamaño de muestra (Kolmogorov-Smirnov estandarizado y Lilliefors para la distribución global, Shapiro-Wilk sobre muestra aleatoria para análisis por grupo); prueba de Levene para igualdad de varianzas; correlación de Pearson con verificación de supuestos e intervalo de confianza; prueba de Mann-Whitney U para comparación de dos grupos independientes con r de rango-biserial como tamaño del efecto; prueba de Kruskal-Wallis con η² como tamaño del efecto y comparaciones post-hoc de Wilcoxon por pares (corrección Bonferroni) únicamente cuando la prueba global resulte significativa; y prueba chi-cuadrado con V de Cramér para asociaciones entre variables categóricas.
+El análisis emplea: estadística descriptiva univariada; ingeniería de características (transformación logarítmica, agrupación de variables continuas); gráficos de distribución (histogramas, boxplots, Q-Q plots); mapa de calor de correlaciones de Pearson; prueba de Lilliefors para evaluar normalidad, tanto para la distribución global como por grupo; prueba de Levene para igualdad de varianzas; correlación de Pearson con verificación de supuestos e intervalo de confianza; prueba de Mann-Whitney U para comparación de dos grupos independientes con r de rango-biserial como tamaño del efecto; prueba de Kruskal-Wallis con η² como tamaño del efecto y comparaciones post-hoc de Wilcoxon por pares (corrección Bonferroni) únicamente cuando la prueba global resulte significativa; y prueba chi-cuadrado con V de Cramér para asociaciones entre variables categóricas.
 
 ### Nivel de significancia
 
@@ -255,7 +255,6 @@ df_plot <- df |>
 for (v in numeric_vars) {
     p <- ggplot(df_plot, aes(x = .data[[v]], y = Premium.Amount)) +
         geom_point(alpha = 0.08, color = "steelblue", size = 0.8) +
-        geom_smooth(method = "lm", se = FALSE, color = "firebrick", linewidth = 0.8) +
         labs(title = paste("Premium.Amount vs", v),
              x = v, y = "Prima (USD)")
     print(p)
@@ -293,7 +292,7 @@ knitr::kable(
 )
 ```
 
-**Interpretación de los diagramas:** las nubes de puntos muestran una dispersión vertical amplia para todos los predictores, por lo que ninguna variable numérica presenta visualmente una relación lineal fuerte con `Premium.Amount`. Las rectas ajustadas son casi horizontales cuando el coeficiente exploratorio se aproxima a cero. La tabla anterior permite interpretar cada gráfico de forma individual: el signo de `r` indica la dirección de la recta y su valor absoluto resume la intensidad lineal observada. Estas correlaciones son descriptivas; de acuerdo con la tabla anterior, `Previous.Claims` y `Credit.Score` presentan los coeficientes de mayor magnitud entre las ocho numéricas, por lo que son las dos variables que se someten posteriormente a comprobación formal de supuestos e inferencia con Pearson.
+**Interpretación de los diagramas:** las nubes de puntos muestran una dispersión vertical amplia para todos los predictores, por lo que ninguna variable numérica presenta visualmente una relación lineal fuerte con `Premium.Amount`. La tabla anterior permite interpretar cada gráfico de forma individual: el signo de `r` indica la dirección de la asociación y su valor absoluto resume la intensidad lineal observada; coeficientes cercanos a cero son coherentes con nubes de puntos sin una tendencia visual clara. Estas correlaciones son descriptivas; de acuerdo con la tabla anterior, `Previous.Claims` y `Credit.Score` presentan los coeficientes de mayor magnitud entre las ocho numéricas, por lo que son las dos variables que se someten posteriormente a comprobación formal de supuestos e inferencia con Pearson.
 
 ### Correlación entre variables numéricas (chequeo de multicolinealidad)
 
@@ -518,7 +517,7 @@ Esta sección evalúa los supuestos estadísticos necesarios para seleccionar co
 
 ### Normalidad de `Premium.Amount`
 
-Dado el tamaño muestral (n = `r nrow(df)`), la prueba de Shapiro-Wilk no es aplicable directamente (requiere n ≤ 5 000). Se emplean la prueba de Kolmogorov-Smirnov estandarizada y la prueba de Lilliefors —extensión del KS para parámetros estimados desde la misma muestra—, complementadas con inspección visual del histograma y el Q-Q plot.
+Dado el tamaño muestral (n = `r nrow(df)`), la prueba de Shapiro-Wilk no es aplicable directamente (requiere n ≤ 5 000). Se emplea la prueba de Lilliefors, una extensión del test de Kolmogorov-Smirnov diseñada específicamente para el caso en que los parámetros de la distribución de referencia (media y desviación estándar) se estiman a partir de la misma muestra —como ocurre aquí—, ya que el KS clásico no es válido en esa situación. Se complementa con inspección visual del histograma y el Q-Q plot.
 
 ```{r normalidad_premium}
 set.seed(42)
@@ -535,48 +534,29 @@ ggplot(df_muestra_norm, aes(sample = Premium.Amount)) +
   labs(title = "Q-Q Plot — Premium.Amount",
        x = "Cuantiles teóricos (normal)", y = "Cuantiles muestrales")
 
-# Kolmogorov-Smirnov sobre datos estandarizados
-ks_premium <- ks.test(scale(df$Premium.Amount), "pnorm")
-ks_premium
-
 # Lilliefors
 lillie_premium <- nortest::lillie.test(df$Premium.Amount)
 lillie_premium
 ```
 
 ```{r normalidad_grupos}
-# Normalidad de Premium.Amount por grupo de Smoking.Status
-# Se usa KS sobre datos estandarizados (adecuado para n grande)
-# Shapiro-Wilk sobre una unica muestra aleatoria por grupo (n <= 5000)
-set.seed(42)
-df_norm_ks <- df |>
+# Normalidad de Premium.Amount por grupo de Smoking.Status (Lilliefors)
+df_norm_grupos <- df |>
   group_by(Smoking.Status) |>
   summarise(
-    n      = n(),
-    est_ks = ks.test(scale(Premium.Amount), "pnorm")$statistic,
-    p_ks   = ks.test(scale(Premium.Amount), "pnorm")$p.value,
+    n          = n(),
+    est_lillie = nortest::lillie.test(Premium.Amount)$statistic,
+    p_lillie   = nortest::lillie.test(Premium.Amount)$p.value,
     .groups = "drop"
   )
 
-set.seed(42)
-df_norm_sw <- df |>
-  group_by(Smoking.Status) |>
-  group_modify(~ {
-    muestra <- sample(.x$Premium.Amount, min(5000, nrow(.x)))
-    sw_res  <- shapiro.test(muestra)
-    tibble(est_sw = round(sw_res$statistic, 4),
-           p_sw   = round(sw_res$p.value, 6))
-  })
-
-df_norm_grupos <- left_join(df_norm_ks, df_norm_sw, by = "Smoking.Status")
-
 knitr::kable(df_norm_grupos,
              digits = 4,
-             caption = "Pruebas de normalidad por grupo de Smoking.Status (KS y Shapiro-Wilk sobre muestra)",
-             col.names = c("Grupo", "n", "D (KS)", "p (KS)", "W (SW)", "p (SW)"))
+             caption = "Prueba de Lilliefors de normalidad por grupo de Smoking.Status",
+             col.names = c("Grupo", "n", "D (Lilliefors)", "p (Lilliefors)"))
 ```
 
-**Interpretación del histograma y Q-Q plot:** el histograma de la muestra conserva la asimetría positiva observada en el dataset completo. En el Q-Q plot, los puntos no siguen de manera estable la línea teórica, especialmente en las colas, lo que evidencia desviaciones de la normalidad. Las pruebas KS y Lilliefors son consistentes con esta inspección visual (KS: D = `r round(ks_premium$statistic, 4)`, p = `r format.pval(ks_premium$p.value, digits = 4, eps = 1e-4)`; Lilliefors: D = `r round(lillie_premium$statistic, 4)`, p = `r format.pval(lillie_premium$p.value, digits = 4, eps = 1e-4)`). El análisis por `Smoking.Status` muestra el mismo patrón. **Conclusión:** `Premium.Amount` no presenta un comportamiento aproximadamente normal, por lo que para las comparaciones grupales se prefieren pruebas no paramétricas.
+**Interpretación del histograma y Q-Q plot:** el histograma de la muestra conserva la asimetría positiva observada en el dataset completo. En el Q-Q plot, los puntos no siguen de manera estable la línea teórica, especialmente en las colas, lo que evidencia desviaciones de la normalidad. La prueba de Lilliefors es consistente con esta inspección visual (D = `r round(lillie_premium$statistic, 4)`, p = `r format.pval(lillie_premium$p.value, digits = 4, eps = 1e-4)`). El análisis por `Smoking.Status` muestra el mismo patrón. **Conclusión:** `Premium.Amount` no presenta un comportamiento aproximadamente normal, por lo que para las comparaciones grupales se prefieren pruebas no paramétricas.
 
 **Nota metodológica:** con n = `r nrow(df)`, cualquier prueba formal detectará incluso desviaciones triviales de la normalidad, produciendo p-valores prácticamente nulos. La decisión metodológica se fundamenta en la combinación del test formal con la inspección visual.
 
@@ -625,7 +605,6 @@ Antes de aplicar Pearson se verifican los supuestos:
 ```{r correlacion_previous}
 ggplot(df_plot, aes(x = Previous.Claims, y = Premium.Amount)) +
   geom_point(alpha = 0.08, color = "steelblue", size = 0.5) +
-  geom_smooth(method = "lm", se = FALSE, color = "firebrick", linewidth = 0.8) +
   labs(title = "Previous.Claims vs Premium.Amount — evaluación de linealidad",
        x = "Reclamos previos", y = "Prima (USD)")
 
@@ -668,7 +647,7 @@ decision_h3 <- ifelse(
 )
 ```
 
-**Interpretación de los gráficos:** al ser `Previous.Claims` una variable discreta, el diagrama de dispersión muestra bandas verticales en vez de una nube continua; dentro de cada banda la dispersión de `Premium.Amount` es amplia y la recta de ajuste tiene una pendiente apenas perceptible, por lo que visualmente no se observa una relación lineal importante entre el número de reclamos previos y la prima. En el gráfico de residuos, los puntos permanecen distribuidos alrededor de cero sin una forma sistemática marcada; por ello, la dispersión puede considerarse aproximadamente constante para este análisis. Estas condiciones hacen razonable utilizar Pearson para cuantificar la relación lineal, aunque la naturaleza discreta de la variable es una limitante adicional a tener en cuenta.
+**Interpretación de los gráficos:** al ser `Previous.Claims` una variable discreta, el diagrama de dispersión muestra bandas verticales en vez de una nube continua; dentro de cada banda la dispersión de `Premium.Amount` es amplia y el promedio no muestra un desplazamiento claro entre bandas, por lo que visualmente no se observa una relación lineal importante entre el número de reclamos previos y la prima. En el gráfico de residuos, los puntos permanecen distribuidos alrededor de cero sin una forma sistemática marcada; por ello, la dispersión puede considerarse aproximadamente constante para este análisis. Estas condiciones hacen razonable utilizar Pearson para cuantificar la relación lineal, aunque la naturaleza discreta de la variable es una limitante adicional a tener en cuenta.
 
 La correlación de Pearson entre `Previous.Claims` y `Premium.Amount` es r = `r r_previous` (IC 95%: [`r ic_previous[1]`, `r ic_previous[2]`], p = `r format.pval(p_cor_previous, digits = 4, eps = 1e-4)`), lo que indica una asociación **`r magnitud_h3`** y **`r direccion_h3`**. Aunque el p-valor es pequeño, la magnitud de r es prácticamente nula; por tanto, la significancia estadística no implica una relación lineal relevante en términos prácticos.
 
@@ -679,7 +658,6 @@ Se aplica el mismo proceso de verificación de supuestos: escala cuantitativa, i
 ```{r correlacion_credit}
 ggplot(df_plot, aes(x = Credit.Score, y = Premium.Amount)) +
   geom_point(alpha = 0.08, color = "steelblue", size = 0.5) +
-  geom_smooth(method = "lm", se = FALSE, color = "firebrick", linewidth = 0.8) +
   labs(title = "Credit.Score vs Premium.Amount — evaluación de linealidad",
        x = "Puntaje crediticio", y = "Prima (USD)")
 
@@ -722,7 +700,7 @@ decision_h4 <- ifelse(
 )
 ```
 
-**Interpretación de los gráficos:** la nube de puntos de `Credit.Score` frente a `Premium.Amount` tampoco muestra una pendiente visual relevante; la recta ajustada es prácticamente horizontal frente a la amplia dispersión de la prima. El gráfico de residuos se mantiene alrededor de cero sin un patrón sistemático marcado, por lo que la dispersión puede considerarse aproximadamente constante. Estas condiciones permiten utilizar Pearson como medida de asociación lineal.
+**Interpretación de los gráficos:** la nube de puntos de `Credit.Score` frente a `Premium.Amount` tampoco muestra una tendencia visual relevante frente a la amplia dispersión de la prima. El gráfico de residuos se mantiene alrededor de cero sin un patrón sistemático marcado, por lo que la dispersión puede considerarse aproximadamente constante. Estas condiciones permiten utilizar Pearson como medida de asociación lineal.
 
 La correlación de Pearson entre `Credit.Score` y `Premium.Amount` es r = `r r_credit` (IC 95%: [`r ic_credit[1]`, `r ic_credit[2]`], p = `r format.pval(p_cor_credit, digits = 4, eps = 1e-4)`), indicando una asociación **`r magnitud_h4`** y **`r direccion_h4`**. El rechazo de H₀ se explica por el gran tamaño muestral, pero la magnitud observada es prácticamente nula y no representa una relación lineal de importancia práctica.
 
