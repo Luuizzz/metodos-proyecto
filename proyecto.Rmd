@@ -329,7 +329,7 @@ ggplot(cor_long, aes(x = var1, y = var2, fill = r)) +
 ```{r categoricas-vs-target}
 for (v in categorical_vars) {
     p <- ggplot(df, aes(x = .data[[v]], y = Premium.Amount)) +
-        geom_boxplot(fill = "steelblue", alpha = 0.7, outlier.alpha = 0.1) +
+        geom_boxplot(fill = "#A7C7E7", alpha = 0.7, outlier.alpha = 0.1) +
         labs(title = paste("Premium.Amount por", v),
              x = v, y = "Prima (USD)") +
         theme(axis.text.x = element_text(angle = 45, hjust = 1))
@@ -381,12 +381,12 @@ df <- df |>
 
 ```{r fecha_plots}
 ggplot(df, aes(x = factor(Policy.Start.Month), y = Premium.Amount)) +
-  geom_boxplot(fill = "steelblue", alpha = 0.7, outlier.alpha = 0.05) +
+  geom_boxplot(fill = "#A7C7E7", alpha = 0.7, outlier.alpha = 0.05) +
   labs(title = "Prima de seguro por mes de inicio de póliza",
        x = "Mes", y = "Prima (USD)")
 
 ggplot(df, aes(x = Policy.Start.Wday, y = Premium.Amount)) +
-  geom_boxplot(fill = "steelblue", alpha = 0.7, outlier.alpha = 0.05) +
+  geom_boxplot(fill = "#A7C7E7", alpha = 0.7, outlier.alpha = 0.05) +
   labs(title = "Prima de seguro por día de la semana (inicio de póliza)",
        x = "Día de la semana", y = "Prima (USD)")
 ```
@@ -479,18 +479,16 @@ knitr::kable(table(df$Income_Q),
 
 ```{r fe_boxplots}
 # Prima segun grupo de edad
-ggplot(df, aes(x = Age_Group, y = Premium.Amount, fill = Age_Group)) +
-  geom_boxplot(alpha = 0.7, outlier.alpha = 0.05) +
+ggplot(df, aes(x = Age_Group, y = Premium.Amount)) +
+  geom_boxplot(fill = "#A7C7E7", alpha = 0.7, outlier.alpha = 0.05) +
   labs(title = "Prima de seguro por grupo de edad",
-       x = "Grupo de edad", y = "Prima (USD)") +
-  theme(legend.position = "none")
+       x = "Grupo de edad", y = "Prima (USD)")
 
 # Prima segun cuartil de ingreso
-ggplot(df, aes(x = Income_Q, y = Premium.Amount, fill = Income_Q)) +
-  geom_boxplot(alpha = 0.7, outlier.alpha = 0.05) +
+ggplot(df, aes(x = Income_Q, y = Premium.Amount)) +
+  geom_boxplot(fill = "#A7C7E7", alpha = 0.7, outlier.alpha = 0.05) +
   labs(title = "Prima de seguro por cuartil de ingreso anual",
-       x = "Cuartil de ingreso", y = "Prima (USD)") +
-  theme(legend.position = "none")
+       x = "Cuartil de ingreso", y = "Prima (USD)")
 ```
 
 ```{r fe_interpretacion}
@@ -748,11 +746,10 @@ Para cada prueba se especifican las hipótesis, se comprueban los supuestos, se 
 **Comprobación de supuestos:** la normalidad fue rechazada en ambos grupos (sección anterior). Levene obtuvo p = `r p_levene_smoke`, por lo que no hay evidencia de varianzas diferentes. Debido principalmente a la falta de normalidad, se emplea la **prueba de Mann-Whitney U** (Wilcoxon de dos muestras independientes).
 
 ```{r h1_boxplot}
-ggplot(df, aes(x = Smoking.Status, y = Premium.Amount, fill = Smoking.Status)) +
-  geom_boxplot(alpha = 0.7, outlier.alpha = 0.05) +
+ggplot(df, aes(x = Smoking.Status, y = Premium.Amount)) +
+  geom_boxplot(fill = "#A7C7E7", alpha = 0.7, outlier.alpha = 0.05) +
   labs(title = "Prima de seguro según estado de fumador",
-       x = "Estado de fumador", y = "Prima (USD)") +
-  theme(legend.position = "none")
+       x = "Estado de fumador", y = "Prima (USD)")
 ```
 
 ```{r h1_wilcox}
@@ -806,11 +803,10 @@ decision_h1 <- ifelse(
 **Comprobación de supuestos:** la normalidad fue rechazada. Levene para `Policy.Type` obtuvo p = `r p_levene_policy`, por lo que no hay evidencia de varianzas distintas entre los tipos de póliza. Debido a la falta de normalidad, se emplea la **prueba de Kruskal-Wallis**.
 
 ```{r h2_boxplot}
-ggplot(df, aes(x = Policy.Type, y = Premium.Amount, fill = Policy.Type)) +
-  geom_boxplot(alpha = 0.7, outlier.alpha = 0.05) +
+ggplot(df, aes(x = Policy.Type, y = Premium.Amount)) +
+  geom_boxplot(fill = "#A7C7E7", alpha = 0.7, outlier.alpha = 0.05) +
   labs(title = "Prima de seguro por tipo de póliza",
-       x = "Tipo de póliza", y = "Prima (USD)") +
-  theme(legend.position = "none")
+       x = "Tipo de póliza", y = "Prima (USD)")
 ```
 
 ```{r h2_kruskal}
