@@ -1,5 +1,5 @@
 ---
-title: "EDA - Insurance Premium Prediction (Kaggle)"
+title: "Prima de seguro (Kaggle): análisis exploratorio y regresión lineal múltiple"
 author: "Juan Luis Castillo Giovannetty y Alejandro de Jesus Cotes Fornaris"
 date: "`r Sys.Date()`"
 output:
@@ -110,7 +110,7 @@ El dataset incluye las siguientes categorías de variables:
 
 ### Preparación de los datos
 
-Los registros con cadenas vacías en variables categóricas fueron convertidos a `NA` para garantizar un conteo correcto de ausentes. Las variables numéricas con datos faltantes fueron imputadas con la mediana de la columna; las categóricas, con la moda. Dos variables presentaron porcentajes de ausentes destacados: `Previous.Claims` (~30 %) y `Credit.Score` (~11 %), para las cuales se advierte que la imputación por un valor único reduce artificialmente su varianza y puede atenuar sus correlaciones reales con el target.
+Los registros con cadenas vacías en variables categóricas fueron convertidos a `NA` para garantizar un conteo correcto de ausentes. Las variables numéricas con datos faltantes fueron imputadas con la mediana de la columna; las categóricas, con la moda. Tres variables presentaron porcentajes de ausentes destacados: `Previous.Claims` (~30 %), `Occupation` (~30 %) y `Credit.Score` (~11 %), seguidas de `Number.of.Dependents` (~9 %). Para ellas se advierte que la imputación por un valor único reduce artificialmente su varianza (o, en `Occupation`, infla la categoría modal) y puede atenuar sus asociaciones reales con el target.
 
 ### Técnicas estadísticas
 
@@ -122,7 +122,7 @@ Se adopta α = 0.05 para todas las pruebas de hipótesis. Dado el tamaño muestr
 
 ### Herramientas
 
-El análisis se desarrolla íntegramente en R (versión ≥ 4.0), utilizando los paquetes `tidyverse`, `Amelia`, `nortest`, `car`, `rstatix`, `lmtest`, `olsrr`, `MASS`, `mctest` y `sandwich`. El documento es reproducible mediante `knitr`.
+El análisis se desarrolla íntegramente en R (versión ≥ 4.1, por el uso del operador `|>`), utilizando los paquetes `tidyverse`, `Amelia`, `nortest`, `car`, `rstatix`, `lmtest`, `olsrr`, `MASS`, `mctest`, `sandwich`, `broom` y `knitr`. El documento es reproducible mediante `knitr`.
 
 ---
 
@@ -189,12 +189,14 @@ na_resumen <- df |>
   filter(N_ausentes > 0) |>
   arrange(desc(Porcentaje))
 
+na_pct <- function(v) na_resumen$Porcentaje[na_resumen$Variable == v]
+
 knitr::kable(na_resumen,
              caption = "Variables con datos ausentes (pre-imputación)",
              col.names = c("Variable", "N ausentes", "% ausente"))
 ```
 
-El `missmap` permite identificar visualmente que la ausencia de información no se distribuye de manera uniforme entre las variables. `Previous.Claims` (~30 % de ausentes) concentra el mayor problema de completitud y `Credit.Score` (~11 %) ocupa el segundo lugar. En las demás variables la proporción de ausentes es considerablemente menor. Por esta razón, cualquier interpretación posterior sobre la relación de `Previous.Claims` y `Credit.Score` con `Premium.Amount` debe hacerse con cautela: la imputación por promedio aplana artificialmente su varianza y puede debilitar una asociación que en los datos sin imputar podría ser distinta.
+El `missmap` permite identificar visualmente que la ausencia de información no se distribuye de manera uniforme entre las variables. `Previous.Claims` (`r na_pct("Previous.Claims")` % de ausentes) y `Occupation` (`r na_pct("Occupation")` %) concentran el mayor problema de completitud, seguidas de `Credit.Score` (`r na_pct("Credit.Score")` %) y `Number.of.Dependents` (`r na_pct("Number.of.Dependents")` %); en las demás variables la proporción de ausentes es menor. Por esta razón, cualquier interpretación posterior sobre la relación de estas variables con `Premium.Amount` debe hacerse con cautela: la imputación por un valor único aplana artificialmente su varianza y puede debilitar una asociación que en los datos sin imputar podría ser distinta.
 
 ---
 
@@ -250,7 +252,7 @@ map_dfr(categorical_vars, function(v) {
   kt(caption = "Frecuencias de las variables categóricas (incluye ausentes)")
 ```
 
-Las tablas de frecuencia revelan que `Gender` y `Smoking.Status` presentan distribuciones relativamente equilibradas entre sus categorías. `Policy.Type` incluye tres opciones (Basic, Comprehensive, Premium), y `Occupation` concentra la mayor cantidad de categorías y también el mayor número de ausentes entre las variables categóricas.
+Las tablas de frecuencia revelan que `Gender` y `Smoking.Status` presentan distribuciones relativamente equilibradas entre sus categorías. `Policy.Type` incluye tres opciones (Basic, Comprehensive, Premium), y `Occupation`, con tres categorías, registra el mayor número de ausentes entre las variables categóricas; `Education.Level` y `Exercise.Frequency` son las de más categorías (cuatro).
 
 ---
 
@@ -275,9 +277,14 @@ sd_premium      <- round(sd(df$Premium.Amount, na.rm = TRUE), 2)
 iqr_premium     <- round(IQR(df$Premium.Amount, na.rm = TRUE), 2)
 min_premium     <- round(min(df$Premium.Amount, na.rm = TRUE), 2)
 max_premium     <- round(max(df$Premium.Amount, na.rm = TRUE), 2)
+
+# Coeficiente de asimetria (momento estandarizado de orden 3)
+asimetria <- function(x) { x <- x[!is.na(x)]; mean((x - mean(x))^3) / sd(x)^3 }
+asim_orig <- round(asimetria(df$Premium.Amount), 3)
+asim_log  <- round(asimetria(log1p(df$Premium.Amount)), 3)
 ```
 
-En la escala original, `Premium.Amount` presenta una concentración importante de observaciones en valores bajos y medios, junto con una cola prolongada hacia valores altos. Esto se refleja en una media de `r media_premium` USD superior a la mediana de `r mediana_premium` USD, confirmando asimetría positiva. La desviación estándar es `r sd_premium` USD y el IQR es `r iqr_premium` USD, lo que evidencia una dispersión amplia. Al aplicar `log(1 + Premium.Amount)`, la cola derecha se comprime y la distribución se vuelve visualmente más simétrica. La transformación mejora la representación gráfica de la variable, aunque no se interpreta como prueba de normalidad.
+En la escala original, `Premium.Amount` presenta una concentración importante de observaciones en valores bajos y medios, junto con una cola prolongada hacia valores altos. Esto se refleja en una media de `r media_premium` USD superior a la mediana de `r mediana_premium` USD, confirmando asimetría positiva. La desviación estándar es `r sd_premium` USD y el IQR es `r iqr_premium` USD, lo que evidencia una dispersión amplia. Al aplicar `log(1 + Premium.Amount)`, la cola derecha se comprime, pero el coeficiente de asimetría pasa de `r asim_orig` a `r asim_log`: el logaritmo **sobrecorrige** y deja una cola izquierda de magnitud similar. La transformación se mantiene por su coherencia con la métrica RMSLE y su interpretación porcentual, no porque produzca una distribución simétrica; en la sección de regresión, Box-Cox sugiere una potencia intermedia.
 
 ---
 
@@ -531,7 +538,7 @@ df <- df |>
     Age_Group = cut(
       Age,
       breaks = c(0, 30, 50, Inf),
-      labels = c("Joven (<30)", "Adulto (30-50)", "Mayor (>50)"),
+      labels = c("Joven (<30)", "Adulto (30-49)", "Mayor (≥50)"),
       right  = FALSE
     ),
 
@@ -594,7 +601,7 @@ knitr::kable(resumen_income_q,
              caption = "Mediana e IQR de la prima por cuartil de ingreso")
 ```
 
-El histograma de `log_premium` confirma que la transformación comprime los valores altos y reduce la asimetría observada en la escala original. En los boxplots por grupo de edad y cuartil de ingreso, la comparación debe centrarse en la posición de las medianas y el solapamiento de los IQR; las tablas anteriores cuantifican ambas medidas. Si las medianas son próximas y las cajas se superponen ampliamente, no existe una separación visual fuerte de la prima entre esos grupos. La categorización se utiliza aquí con fines descriptivos y no implica por sí misma una asociación estadísticamente significativa.
+El histograma de `log_premium` confirma que la transformación comprime los valores altos, aunque genera una cola izquierda (asimetría `r asim_log`). En los boxplots por grupo de edad y cuartil de ingreso, la comparación debe centrarse en la posición de las medianas y el solapamiento de los IQR; las tablas anteriores cuantifican ambas medidas. Si las medianas son próximas y las cajas se superponen ampliamente, no existe una separación visual fuerte de la prima entre esos grupos. La categorización se utiliza aquí con fines descriptivos y no implica por sí misma una asociación estadísticamente significativa.
 
 ---
 
@@ -630,12 +637,10 @@ tabla_test(lillie_premium, "Prueba de Lilliefors — Premium.Amount")
 # Normalidad de Premium.Amount por grupo de Smoking.Status (Lilliefors)
 df_norm_grupos <- df |>
   group_by(Smoking.Status) |>
-  summarise(
-    n          = n(),
-    est_lillie = nortest::lillie.test(Premium.Amount)$statistic,
-    p_lillie   = nortest::lillie.test(Premium.Amount)$p.value,
-    .groups = "drop"
-  )
+  summarise(n = n(), lf = list(nortest::lillie.test(Premium.Amount)), .groups = "drop") |>
+  mutate(est_lillie = map_dbl(lf, ~ .x$statistic),
+         p_lillie   = map_dbl(lf, ~ .x$p.value)) |>
+  select(-lf)
 
 knitr::kable(df_norm_grupos,
              digits = 4,
@@ -704,7 +709,7 @@ n_previous     <- sum(complete.cases(df$Previous.Claims, df$Premium.Amount))
 
 # IC 95% aproximado por transformacion z de Fisher (valido para n grande)
 z_fisher    <- atanh(rho_previous)
-se_fisher   <- 1 / sqrt(n_previous - 3)
+se_fisher   <- sqrt((1 + rho_previous^2 / 2) / (n_previous - 3))  # Bonett y Wright (2000)
 ic_previous <- round(tanh(z_fisher + c(-1, 1) * qnorm(0.975) * se_fisher), 4)
 
 r_previous   <- round(rho_previous, 4)
@@ -722,7 +727,7 @@ decision_h3 <- ifelse(
 
 Al ser `Previous.Claims` una variable discreta, el diagrama de dispersión muestra bandas verticales en vez de una nube continua; dentro de cada banda la dispersión de `Premium.Amount` es amplia y no se observa una tendencia monótona clara del promedio de la prima a medida que aumenta el número de reclamos previos. La escala de ambas variables y la independencia de las observaciones permiten aplicar Spearman; la naturaleza discreta de `Previous.Claims` implica numerosos empates, que la prueba resuelve mediante rangos promedio.
 
-La correlación de Spearman entre `Previous.Claims` y `Premium.Amount` es ρ = `r r_previous` (IC 95% aproximado por transformación z de Fisher: [`r ic_previous[1]`, `r ic_previous[2]`], p = `r format.pval(p_cor_previous, digits = 4, eps = 1e-4)`), lo que indica una asociación **`r magnitud_h3`** y **`r direccion_h3`**. Aunque el p-valor es pequeño, la magnitud de ρ es prácticamente nula; por tanto, la significancia estadística no implica una relación monótona relevante en términos prácticos.
+La correlación de Spearman entre `Previous.Claims` y `Premium.Amount` es ρ = `r r_previous` (IC 95% aproximado por transformación z de Fisher con el error estándar de Bonett y Wright para Spearman: [`r ic_previous[1]`, `r ic_previous[2]`], p = `r format.pval(p_cor_previous, digits = 4, eps = 1e-4)`), lo que indica una asociación **`r magnitud_h3`** y **`r direccion_h3`**. Aunque el p-valor es pequeño, la magnitud de ρ es prácticamente nula; por tanto, la significancia estadística no implica una relación monótona relevante en términos prácticos.
 
 ### Credit.Score y Premium.Amount
 
@@ -745,7 +750,7 @@ n_credit     <- sum(complete.cases(df$Credit.Score, df$Premium.Amount))
 
 # IC 95% aproximado por transformacion z de Fisher (valido para n grande)
 z_fisher_credit  <- atanh(rho_credit)
-se_fisher_credit <- 1 / sqrt(n_credit - 3)
+se_fisher_credit <- sqrt((1 + rho_credit^2 / 2) / (n_credit - 3))  # Bonett y Wright (2000)
 ic_credit        <- round(tanh(z_fisher_credit + c(-1, 1) * qnorm(0.975) * se_fisher_credit), 4)
 
 r_credit    <- round(rho_credit, 4)
@@ -763,7 +768,26 @@ decision_h4 <- ifelse(
 
 La nube de puntos de `Credit.Score` frente a `Premium.Amount` no muestra una tendencia monótona visualmente clara frente a la amplia dispersión de la prima. Ambas variables cumplen escala de razón y la independencia de las observaciones se justifica por la estructura del dataset, por lo que es razonable aplicar Spearman como medida de asociación monótona.
 
-La correlación de Spearman entre `Credit.Score` y `Premium.Amount` es ρ = `r r_credit` (IC 95% aproximado por transformación z de Fisher: [`r ic_credit[1]`, `r ic_credit[2]`], p = `r format.pval(p_cor_credit, digits = 4, eps = 1e-4)`), indicando una asociación **`r magnitud_h4`** y **`r direccion_h4`**. El rechazo de H₀ se explica por el gran tamaño muestral, pero la magnitud observada es prácticamente nula y no representa una relación monótona de importancia práctica.
+La correlación de Spearman entre `Credit.Score` y `Premium.Amount` es ρ = `r r_credit` (IC 95% aproximado por transformación z de Fisher con el error estándar de Bonett y Wright para Spearman: [`r ic_credit[1]`, `r ic_credit[2]`], p = `r format.pval(p_cor_credit, digits = 4, eps = 1e-4)`), indicando una asociación **`r magnitud_h4`** y **`r direccion_h4`**. El rechazo de H₀ se explica por el gran tamaño muestral, pero la magnitud observada es prácticamente nula y no representa una relación monótona de importancia práctica.
+
+### Sensibilidad a la imputación
+
+Como `Previous.Claims` y `Credit.Score` tienen una proporción alta de valores imputados, se recalcula la correlación de Spearman solo con los casos completos del dataset original, sin imputar.
+
+```{r sensibilidad_imputacion}
+sens_imp <- map_dfr(c("Previous.Claims", "Credit.Score"), function(v) {
+  ok <- complete.cases(train[[v]], train$Premium.Amount)
+  ct <- cor.test(train[[v]][ok], train$Premium.Amount[ok], method = "spearman", exact = FALSE)
+  tibble(Variable = v,
+         `n casos completos` = sum(ok),
+         `ρ casos completos` = unname(ct$estimate),
+         `p (casos completos)` = ct$p.value,
+         `ρ con imputación` = if (v == "Previous.Claims") rho_previous else rho_credit)
+})
+kt(sens_imp, caption = "Spearman con casos completos frente a datos imputados")
+```
+
+Con casos completos, ρ = `r round(sens_imp[[3]][1], 4)` para `Previous.Claims` y ρ = `r round(sens_imp[[3]][2], 4)` para `Credit.Score`, frente a `r r_previous` y `r r_credit` con imputación. La imputación atenúa ligeramente las correlaciones, como se anticipó, pero en ambos casos la magnitud sigue siendo insignificante y las conclusiones de H3 y H4 no cambian.
 
 ---
 
@@ -928,7 +952,7 @@ El resultado fue calculado en la sección de correlaciones: ρ = `r r_previous`,
 
 **Nivel de significancia:** α = 0.05.
 
-**Supuestos verificados:** ambas variables son cuantitativas continuas (escala de razón); la independencia de las observaciones se justifica por la estructura del dataset; la relación monótona se comprobó visualmente mediante el diagrama de dispersión; y al no presentar empates relevantes, `cor.test()` calcula el p-valor exacto de Spearman. Dado que `Premium.Amount` no presenta normalidad marginal, se utiliza Spearman en lugar de Pearson.
+**Supuestos verificados:** ambas variables son cuantitativas continuas (escala de razón); la independencia de las observaciones se justifica por la estructura del dataset; la relación monótona se comprobó visualmente mediante el diagrama de dispersión; y como `Credit.Score` es entera (unos 550 valores distintos) y su imputación por la mediana genera muchos empates, `cor.test()` usa rangos promedio y la aproximación asintótica para el p-valor. Dado que `Premium.Amount` no presenta normalidad marginal, se utiliza Spearman en lugar de Pearson.
 
 El resultado fue calculado en la sección de correlaciones: ρ = `r r_credit`, IC 95% aproximado [`r ic_credit[1]`, `r ic_credit[2]`], p = `r format.pval(p_cor_credit, digits = 4, eps = 1e-4)`.
 
@@ -1011,7 +1035,7 @@ Los supuestos sobre los errores $\varepsilon_i$ (media cero, normalidad, varianz
 
 Se trabaja con una **muestra aleatoria reproducible de 5 000 observaciones** para el ajuste y otra muestra **disjunta** de 5 000 observaciones para validar la capacidad predictiva. Esta decisión obedece a tres razones: (i) la prueba de Shapiro-Wilk sobre los residuos admite como máximo n = 5 000; (ii) con n ≈ 1.2 millones cualquier coeficiente, por mínimo que sea, resulta significativo, lo que vacía de contenido a las pruebas de hipótesis; y (iii) los procedimientos de selección (todas las regresiones posibles, selección secuencial, Durbin-Watson con *bootstrap*) son computacionalmente costosos. La muestra de ajuste se ordena por `Policy.Start.Date` para que la prueba de independencia (Durbin-Watson) evalúe autocorrelación en el **orden temporal** de las pólizas.
 
-Como variable respuesta se usa `log_premium = log(1 + Premium.Amount)`: reduce la asimetría positiva del target, es coherente con la métrica RMSLE de la competencia y permite interpretar los coeficientes como cambios porcentuales aproximados.
+Como variable respuesta se usa `log_premium = log(1 + Premium.Amount)`: comprime la cola derecha del target (aunque sobrecorrige, con asimetría `r asim_log`), es coherente con la métrica RMSLE de la competencia y permite interpretar los coeficientes como cambios porcentuales aproximados.
 
 ```{r rlm_muestra}
 library(lmtest)
@@ -1076,7 +1100,7 @@ knitr::kable(
 )
 ```
 
-El cálculo matricial reproduce exactamente los coeficientes de `lm()`. En la tabla de `summary()` cada prueba t contrasta H₀: βⱼ = 0 frente a H₁: βⱼ ≠ 0, manteniendo constantes los demás predictores. Solo `r paste0("\x60", names(which(summary(modelo_num)$coefficients[-1, 4] < 0.05)), "\x60", collapse = " y ")` resultan significativos a α = 0.05, lo que coincide con lo observado en el análisis bivariado.
+El cálculo matricial reproduce exactamente los coeficientes de `lm()`. En la tabla de `summary()` cada prueba t contrasta H₀: βⱼ = 0 frente a H₁: βⱼ ≠ 0, manteniendo constantes los demás predictores. Solo `r paste0("\x60", names(which(summary(modelo_num)$coefficients[-1, 4] < 0.05)), "\x60", collapse = " y ")` resultan significativos a α = 0.05. Esto no coincide del todo con la selección bivariada, que destacó `Previous.Claims` y `Credit.Score` a partir de correlaciones de Pearson con la prima en escala original: en escala logarítmica y ajustando por los demás predictores, el ingreso anual resulta el predictor más fuerte, mientras que `Previous.Claims` no alcanza significancia con n = 5 000. La comprobación con el conjunto completo, al final de esta sección, muestra que `Previous.Claims` sí es significativa con más potencia, aunque su efecto es pequeño.
 
 ### Coeficiente de determinación R²
 
@@ -1172,7 +1196,7 @@ k_max_adj <- r2_seq$k[which.max(r2_seq$R2_ajustado)]
 n_bajadas <- sum(diff(r2_seq$R2_ajustado) < 0)
 ```
 
-El R² ajustado del modelo numérico es `r f4(R2adj_manual)`, menor que el R² (`r f4(R2_manual)`) por la penalización de `r k_num` predictores. En la secuencia anterior el R² aumenta siempre al agregar variables, mientras que el R² ajustado disminuye en `r n_bajadas` de los `r nrow(r2_seq) - 1` pasos y alcanza su máximo con k = `r k_max_adj` predictores. Esto indica que varias variables numéricas no mejoran el ajuste lo suficiente para compensar el grado de libertad que consumen, lo que motiva la selección de variables más adelante.
+El R² ajustado del modelo numérico es `r f4(R2adj_manual)`, menor que el R² (`r f4(R2_manual)`) por la penalización de `r k_num` predictores. En la secuencia anterior el R² aumenta siempre al agregar variables, mientras que el R² ajustado disminuye en `r n_bajadas` de los `r nrow(r2_seq) - 1` pasos y alcanza su máximo con k = `r k_max_adj` predictores. Esto indica que varias variables numéricas no mejoran el ajuste lo suficiente para compensar el grado de libertad que consumen, lo que motiva la selección de variables más adelante. Como las variables entran en el orden arbitrario de la lista, esta secuencia es solo ilustrativa; la comparación formal entre subconjuntos se hace en la selección del mejor modelo.
 
 ### Análisis de los errores (residuos)
 
@@ -1389,7 +1413,7 @@ knitr::kable(
 )
 ```
 
-`r n_lev` observaciones tienen alto apalancamiento y `r n_cook4n` superan el umbral de alerta $D_i > 4/n$; sin embargo, `r ifelse(n_cook1 == 0, "ninguna", n_cook1)` supera $D_i > 1$ (la distancia de Cook máxima es `r f4(max(cook_num))`). Al reajustar el modelo sin las observaciones de alerta, los coeficientes conservan su signo `r ifelse(all(sign(coef(modelo_num)) == sign(coef(modelo_num_sin_inf))), "en todos los términos", "en la mayoría de los términos")` y el R² pasa de `r f4(summary(modelo_num)$r.squared)` a `r f4(summary(modelo_num_sin_inf)$r.squared)`. Ninguna observación individual domina la estimación; se conservan todas en el análisis.
+`r n_lev` observaciones tienen alto apalancamiento y `r n_cook4n` superan el umbral de alerta $D_i > 4/n$; sin embargo, `r ifelse(n_cook1 == 0, "ninguna", n_cook1)` supera $D_i > 1$ (la distancia de Cook máxima es `r f4(max(cook_num))`). Al reajustar el modelo sin las observaciones de alerta, los coeficientes conservan su signo `r ifelse(all(sign(coef(modelo_num)) == sign(coef(modelo_num_sin_inf))), "en todos los términos", "en la mayoría de los términos")`, pero las magnitudes cambian: el R² pasa de `r f4(summary(modelo_num)$r.squared)` a `r f4(summary(modelo_num_sin_inf)$r.squared)` y el coeficiente de `Previous.Claims` pasa de `r signif(coef(modelo_num)["Previous.Claims"], 3)` a `r signif(coef(modelo_num_sin_inf)["Previous.Claims"], 3)`. Ninguna observación individual domina la estimación (todas tienen $D_i < 1$), por lo que se conservan todas; sin embargo, el conjunto de observaciones de alerta influye en la magnitud de los coeficientes de las variables más débiles, que deben interpretarse con cautela.
 
 #### Resumen del análisis de los errores
 
@@ -1411,7 +1435,8 @@ diag_supuestos <- function(m, seed = 42) {
     p_valor     = c(tt$p.value, sw$p.value, bp$p.value, dw$p, rs$p.value),
     Decision    = ifelse(p_valor < 0.05, "Se rechaza H₀: no se cumple",
                          "No se rechaza H₀: se cumple")
-  )
+  ) |>
+    mutate(Decision = replace(Decision, 1, "Se cumple por construcción (MCO con intercepto)"))
 }
 
 sup_num <- diag_supuestos(modelo_num)
@@ -1460,7 +1485,7 @@ k_best_bic <- best_df$n[which.min(best_df$sbc)]
 k_best_cp  <- best_df$n[which.min(best_df$cp)]
 ```
 
-El R² ajustado se maximiza con k = `r k_best_adj` predictores, el AIC con k = `r k_best_aic`, el menor $C_p$ con k = `r k_best_cp` ($C_p$ = `r round(min(best_df$cp), 2)` < p = `r k_best_cp + 1`; el modelo con los 8 predictores cumple $C_p = p$ por construcción) y el BIC con k = `r k_best_bic` (`r best_df$predictors[best_df$n == k_best_bic]`). Como es habitual, el BIC elige el modelo más parsimonioso por su mayor penalización. En todos los tamaños aparecen `Annual.Income` y `Credit.Score`, las dos variables con mayor aporte individual.
+El R² ajustado se maximiza con k = `r k_best_adj` predictores, el AIC con k = `r k_best_aic`, el menor $C_p$ con k = `r k_best_cp` ($C_p$ = `r round(min(best_df$cp), 2)` < p = `r k_best_cp + 1`; el modelo con los 8 predictores cumple $C_p = p$ por construcción) y el BIC con k = `r k_best_bic` (`r best_df$predictors[best_df$n == k_best_bic]`). Como es habitual, el BIC elige el modelo más parsimonioso por su mayor penalización. A partir de k = 2, todos los mejores subconjuntos incluyen `Annual.Income` y `Credit.Score`, las dos variables con mayor aporte individual. En esta tabla el $C_p$ usa como referencia el modelo numérico de 8 variables.
 
 #### Selección secuencial (stepwise)
 
@@ -1638,13 +1663,13 @@ comparacion <- imap_dfr(candidatos, function(m, nombre) {
 })
 
 knitr::kable(comparacion, digits = 4,
-             caption = "Comparación de modelos candidatos (ajuste: n = 5 000; validación: n = 5 000)")
+             caption = "Comparación de modelos candidatos (ajuste: n = 5 000; validación: n = 5 000). Aquí el Cp usa como referencia el modelo completo de 29 parámetros, por eso difiere del de la tabla de todas las regresiones posibles")
 
 modelo_final <- modelo_full_bic
 mejora_rmsle <- 100 * (1 - min(comparacion$RMSLE_validacion[-1]) / comparacion$RMSLE_validacion[1])
 ```
 
-El modelo con menor BIC es el seleccionado por *stepwise* BIC (`r paste(attr(terms(modelo_final), "term.labels"), collapse = " + ")`), que además tiene un PRESS de `r round(sum((resid(modelo_final) / (1 - hatvalues(modelo_final)))^2), 1)` (el mínimo entre los candidatos lo obtiene: `r comparacion$Modelo[which.min(comparacion$PRESS)]`) y un RMSLE de validación de `r f4(rmsle(modelo_final))`, frente a `r f4(rmsle(modelo_full))` del modelo completo con 29 parámetros. Los modelos más grandes alcanzan un R² algo mayor en la muestra de ajuste, pero no predicen mejor en datos nuevos: es la señal de sobreajuste que los criterios penalizados anticipan. Debe destacarse que el mejor modelo reduce el RMSLE apenas un `r round(mejora_rmsle, 2)` % respecto al modelo nulo que predice siempre la media; la capacidad predictiva del modelo lineal es muy limitada. Se elige como **modelo final** el seleccionado por BIC, por ser el más parsimonioso y tener el mejor desempeño predictivo.
+El modelo con menor BIC es el seleccionado por *stepwise* BIC (`r paste(attr(terms(modelo_final), "term.labels"), collapse = " + ")`), que además tiene un PRESS de `r round(sum((resid(modelo_final) / (1 - hatvalues(modelo_final)))^2), 1)` (el mínimo entre los candidatos lo obtiene: `r comparacion$Modelo[which.min(comparacion$PRESS)]`) y un RMSLE de validación de `r f4(rmsle(modelo_final))`, frente a `r f4(rmsle(modelo_full))` del modelo completo con 29 parámetros. Los modelos más grandes alcanzan un R² algo mayor en la muestra de ajuste, pero no mejoran la predicción en datos nuevos. Las diferencias de RMSLE entre candidatos son del orden de milésimas y no se evaluó su variabilidad (por ejemplo, con validación cruzada), por lo que no permiten distinguir con certeza entre modelos. Debe destacarse que el mejor modelo reduce el RMSLE apenas un `r round(mejora_rmsle, 2)` % respecto al modelo nulo que predice siempre la media; la capacidad predictiva del modelo lineal es muy limitada. Se elige como **modelo final** el seleccionado por BIC, por ser el más parsimonioso con un desempeño predictivo equivalente al de los modelos mayores.
 
 ### Modelo final
 
@@ -1696,13 +1721,49 @@ r2a_final <- summary(modelo_final)$adj.r.squared
 
 Ambos efectos son negativos y estadísticamente significativos, pero de magnitud reducida. El modelo lineal confirma, en un marco multivariado, la conclusión del análisis bivariado: las variables disponibles explican una proporción muy pequeña de la prima de seguro.
 
+### Comprobación con el conjunto completo
+
+Las conclusiones anteriores se obtuvieron con una muestra de 5 000 observaciones, con poca potencia para detectar efectos pequeños. Para comprobar si cambian, se ajustan los modelos numérico, completo y final con las `r nrow(df)` observaciones.
+
+```{r rlm_completo}
+df_all <- df |> mutate(across(all_of(categorical_vars), factor))
+
+modelo_num_all   <- lm(f_num, data = df_all)
+modelo_full_all  <- lm(f_full, data = df_all)
+modelo_final_all <- lm(formula(modelo_final), data = df_all)
+
+kt(imap_dfr(list(`Numérico (8)` = modelo_num_all,
+                 `Completo (numéricas + categóricas)` = modelo_full_all,
+                 `Final (BIC)` = modelo_final_all),
+            function(m, nombre) tibble(Modelo = nombre, p = length(coef(m)),
+                                       R2 = summary(m)$r.squared,
+                                       R2_ajustado = summary(m)$adj.r.squared)),
+   caption = "Ajuste con el conjunto completo", digits = 5)
+
+anova_all <- car::Anova(modelo_full_all, type = 2)
+kt(as.data.frame(anova_all) |> rownames_to_column("Variable"),
+   caption = "Pruebas F de tipo II con el conjunto completo")
+
+f_cat_all   <- anova(modelo_num_all, modelo_full_all)
+p_f_cat_all <- f_cat_all$`Pr(>F)`[2]
+sig_all     <- rownames(anova_all)[!is.na(anova_all$`Pr(>F)`) & anova_all$`Pr(>F)` < 0.05]
+sig_num_all <- intersect(sig_all, numeric_vars)
+sig_cat_all <- intersect(sig_all, categorical_vars)
+r2_num_all  <- summary(modelo_num_all)$r.squared
+r2_full_all <- summary(modelo_full_all)$r.squared
+r2_fin_all  <- summary(modelo_final_all)$r.squared
+rm(df_all, modelo_full_all); invisible(gc())
+```
+
+Con el conjunto completo resultan significativas las variables numéricas `r paste(sig_num_all, collapse = ", ")` y las categóricas `r if (length(sig_cat_all) == 0) "(ninguna)" else paste(sig_cat_all, collapse = ", ")`; la prueba F parcial del bloque categórico da p = `r fmt_p(p_f_cat_all)`. Es decir, con más potencia aparecen efectos que la muestra de 5 000 no detectaba, como el de `Previous.Claims`. Sin embargo, el R² apenas cambia: `r f4(r2_fin_all)` con el modelo final, `r f4(r2_num_all)` con las 8 numéricas y `r f4(r2_full_all)` con las 18 variables. Estos efectos son estadísticamente significativos pero no tienen relevancia práctica, de modo que la conclusión central se mantiene: las variables disponibles explican alrededor del 1 % de la variabilidad de la prima.
+
 ---
 
 ## Resultados
 
 Los análisis realizados permiten resumir los hallazgos principales en correspondencia con cada objetivo específico:
 
-1. `Premium.Amount` sigue una distribución asimétrica positiva con media = `r media_premium` USD, mediana = `r mediana_premium` USD e IQR = `r iqr_premium` USD. La transformación logarítmica reduce la asimetría de la distribución y resulta adecuada para análisis posteriores. Los datos ausentes se concentran en `Previous.Claims` y `Credit.Score`.
+1. `Premium.Amount` sigue una distribución asimétrica positiva con media = `r media_premium` USD, mediana = `r mediana_premium` USD e IQR = `r iqr_premium` USD. La transformación logarítmica comprime la cola derecha, pero sobrecorrige (asimetría de `r asim_orig` a `r asim_log`); se mantiene por su coherencia con RMSLE. Los datos ausentes se concentran en `Previous.Claims`, `Occupation` y `Credit.Score`.
 
 2. Las variables numéricas presentan distribuciones y escalas heterogéneas, con `Annual.Income` mostrando la mayor dispersión relativa. Las variables categóricas exhiben distribuciones generalmente equilibradas, con la excepción de `Occupation`, que registra tanto múltiples categorías como ausentes.
 
@@ -1712,7 +1773,7 @@ Los análisis realizados permiten resumir los hallazgos principales en correspon
 
 5. H1, H2 y H5 **no rechazan H₀** a α = 0.05. H3 y H4 sí rechazan H₀, pero con correlaciones de magnitud prácticamente nula. La V de Cramér = `r cramers_v_val` entre `Smoking.Status` y `Exercise.Frequency` confirma una asociación `r mag_cramer`.
 
-6. El modelo con las ocho variables numéricas obtuvo R² = `r f4(R2_manual)` y R² ajustado = `r f4(R2adj_manual)`, con prueba F global p = `r fmt_p(p_F)`. En el análisis de residuos se cumplen media cero, independencia (DW = `r f4(dw_num$dw)`) y ausencia de multicolinealidad (VIF máx. = `r round(max(vif_num), 3)`), pero se rechazan la normalidad (Shapiro-Wilk p = `r fmt_p(sw_num$p.value)`) y la homocedasticidad (Breusch-Pagan p = `r fmt_p(bp_num$p.value)`). Las variables categóricas no aportan conjuntamente (F parcial p = `r fmt_p(p_f_parcial_cat)`). El modelo final seleccionado por BIC incluye `r paste(attr(terms(modelo_final), "term.labels"), collapse = " y ")`, con R² = `r f4(r2_final)` y RMSLE de validación = `r f4(rmsle(modelo_final))`.
+6. El modelo con las ocho variables numéricas obtuvo R² = `r f4(R2_manual)` y R² ajustado = `r f4(R2adj_manual)`, con prueba F global p = `r fmt_p(p_F)`. En el análisis de residuos se cumplen media cero, independencia (DW = `r f4(dw_num$dw)`) y ausencia de multicolinealidad (VIF máx. = `r round(max(vif_num), 3)`), pero se rechazan la normalidad (Shapiro-Wilk p = `r fmt_p(sw_num$p.value)`) y la homocedasticidad (Breusch-Pagan p = `r fmt_p(bp_num$p.value)`). En la muestra, las variables categóricas no aportan conjuntamente (F parcial p = `r fmt_p(p_f_parcial_cat)`). El modelo final seleccionado por BIC incluye `r paste(attr(terms(modelo_final), "term.labels"), collapse = " y ")`, con R² = `r f4(r2_final)` y RMSLE de validación = `r f4(rmsle(modelo_final))`. Con el conjunto completo aparecen más efectos significativos, pero el R² con las 18 variables sigue siendo `r f4(r2_full_all)`.
 
 ---
 
@@ -1724,9 +1785,9 @@ En las correlaciones, `Previous.Claims` (ρ = `r r_previous`) y `Credit.Score` (
 
 La V de Cramér obtenida entre `Smoking.Status` y `Exercise.Frequency` (V = `r cramers_v_val`) indica que la magnitud de la asociación entre ambas variables es `r mag_cramer`.
 
-El modelo de regresión lineal múltiple lleva esta conclusión al plano multivariado. Aun considerando conjuntamente las 18 variables predictoras, el R² no supera el `r round(100 * summary(modelo_full)$r.squared, 1)` %, y la selección de variables retiene únicamente `r paste(attr(terms(modelo_final), "term.labels"), collapse = " y ")`. El modelo final reduce el RMSLE de validación solo un `r round(mejora_rmsle, 2)` % frente a predecir la media. El incumplimiento de normalidad y homocedasticidad no invalida estas conclusiones, pues con n = 5 000 la inferencia sobre los coeficientes es aproximadamente válida y se verificó con errores estándar robustos, pero sí indica que la relación entre los predictores y la prima no es lineal ni homogénea, y que modelos no lineales (por ejemplo, basados en árboles) podrían capturar estructura que la regresión lineal no detecta.
+El modelo de regresión lineal múltiple lleva esta conclusión al plano multivariado. Aun considerando conjuntamente las 18 variables predictoras, el R² no supera el `r round(100 * summary(modelo_full)$r.squared, 1)` %, y la selección de variables en la muestra de 5 000 retiene únicamente `r paste(attr(terms(modelo_final), "term.labels"), collapse = " y ")`. Con el conjunto completo aparecen efectos significativos adicionales, pero sin aumento apreciable del R², lo que repite a escala multivariada la distinción entre significancia estadística y relevancia práctica. El modelo final reduce el RMSLE de validación solo un `r round(mejora_rmsle, 2)` % frente a predecir la media. El incumplimiento de normalidad y homocedasticidad no invalida estas conclusiones, pues con n = 5 000 la inferencia sobre los coeficientes es aproximadamente válida y se verificó con errores estándar robustos, pero sí indica que la relación entre los predictores y la prima no es lineal ni homogénea, y que modelos no lineales (por ejemplo, basados en árboles) podrían capturar estructura que la regresión lineal no detecta.
 
-La imputación por mediana en `Previous.Claims` (~30 % de ausentes) es la limitación más seria del análisis: aplana la varianza de esta variable y puede subestimar su correlación real con la prima.
+La imputación simple en `Previous.Claims` y `Occupation` (~30 % de ausentes cada una) es la limitación más seria del análisis: aplana la varianza de `Previous.Claims` e infla la categoría modal de `Occupation`. Con casos completos, la correlación de `Previous.Claims` con la prima es algo mayor, aunque sigue siendo insignificante.
 
 ---
 
@@ -1734,7 +1795,7 @@ La imputación por mediana en `Previous.Claims` (~30 % de ausentes) es la limita
 
 1. Los datos fueron generados mediante un modelo de deep learning, lo que puede introducir artefactos estadísticos (correlaciones atípicamente uniformes, ausencia de outliers reales, etc.). Los hallazgos no son directamente extrapolables a datos actuariales reales sin validación adicional.
 
-2. La imputación por mediana en variables numéricas y por moda en categóricas preserva los valores centrales y es más robusta ante distribuciones sesgadas que la media, pero de todas formas reduce artificialmente la varianza al insertar un valor único repetido, especialmente en `Previous.Claims`. Esto puede sesgar correlaciones y tamaños del efecto hacia la nulidad.
+2. La imputación por mediana en variables numéricas y por moda en categóricas preserva los valores centrales y es más robusta ante distribuciones sesgadas que la media, pero de todas formas reduce artificialmente la varianza al insertar un valor único repetido, especialmente en `Previous.Claims` y `Occupation` (~30 % de ausentes cada una). Esto puede sesgar correlaciones y tamaños del efecto hacia la nulidad.
 
 3. Con n = `r nrow(df)`, asociaciones o diferencias de magnitud muy pequeña pueden alcanzar significancia estadística. En consecuencia, el p-valor debe interpretarse junto con el tamaño del efecto y los estadísticos descriptivos para evaluar la relevancia práctica.
 
@@ -1752,9 +1813,9 @@ El presente análisis cumplió el objetivo general de examinar la estructura est
 
 En relación con los objetivos específicos:
 
-1. El dataset original contiene `r n_original` observaciones y `r p_original` variables. `Premium.Amount` presenta asimetría positiva (media = `r media_premium` USD, mediana = `r mediana_premium` USD, IQR = `r iqr_premium` USD). Los datos ausentes se concentran en `Previous.Claims` (~30 %) y `Credit.Score` (~11 %).
+1. El dataset original contiene `r n_original` observaciones y `r p_original` variables. `Premium.Amount` presenta asimetría positiva (media = `r media_premium` USD, mediana = `r mediana_premium` USD, IQR = `r iqr_premium` USD). Los datos ausentes se concentran en `Previous.Claims` y `Occupation` (~30 % cada una) y `Credit.Score` (~11 %).
 
-2. Las variables numéricas presentan rangos y escalas heterogéneas. La transformación logarítmica reduce la asimetría del target y resulta adecuada para análisis que requieran distribuciones más simétricas.
+2. Las variables numéricas presentan rangos y escalas heterogéneas. La transformación logarítmica comprime la cola derecha del target pero sobrecorrige su asimetría; Box-Cox sugiere una potencia cercana a 0.4.
 
 3. No se encontró evidencia estadística de diferencias en la prima según `Smoking.Status` (Mann-Whitney p = `r p_h1_fmt`) ni según `Policy.Type` (Kruskal-Wallis p = `r p_h2_fmt`). En ambos análisis los tamaños del efecto fueron prácticamente nulos, coherentes con el amplio solapamiento observado en los boxplots.
 
@@ -1762,7 +1823,7 @@ En relación con los objetivos específicos:
 
 5. H1, H2 y H5 no rechazaron H₀ a α = 0.05. H3 y H4 sí rechazaron H₀, pero sus coeficientes de correlación fueron prácticamente nulos. La V de Cramér = `r cramers_v_val` entre `Smoking.Status` y `Exercise.Frequency` también indica una asociación `r mag_cramer`. En conjunto, los resultados no muestran relaciones bivariadas de magnitud elevada con la prima entre las variables evaluadas formalmente.
 
-6. El modelo de regresión lineal múltiple explica una fracción muy pequeña de la variabilidad de la prima (R² = `r f4(R2_manual)` con las variables numéricas; R² ajustado = `r f4(R2adj_manual)`). El análisis de residuos confirmó media cero, independencia y ausencia de multicolinealidad, pero no normalidad ni homocedasticidad. La selección por todas las regresiones posibles y *stepwise* (AIC/BIC), validada con RMSLE en una muestra independiente, condujo a un modelo parsimonioso con `r paste(attr(terms(modelo_final), "term.labels"), collapse = " y ")`. Las variables categóricas, incorporadas como dummies, no mejoran el modelo.
+6. El modelo de regresión lineal múltiple explica una fracción muy pequeña de la variabilidad de la prima (R² = `r f4(R2_manual)` con las variables numéricas; R² ajustado = `r f4(R2adj_manual)`). El análisis de residuos confirmó media cero, independencia y ausencia de multicolinealidad, pero no normalidad ni homocedasticidad. La selección por todas las regresiones posibles y *stepwise* (AIC/BIC), validada con RMSLE en una muestra independiente, condujo a un modelo parsimonioso con `r paste(attr(terms(modelo_final), "term.labels"), collapse = " y ")`. Las variables categóricas, incorporadas como dummies, no mejoran el modelo en la muestra; con el conjunto completo algunas son significativas, pero el R² no cambia de forma apreciable.
 
 ---
 
@@ -1770,13 +1831,13 @@ En relación con los objetivos específicos:
 
 1. Extender la prueba chi-cuadrado con V de Cramér a todos los pares de variables categóricas del dataset, no solo a `Smoking.Status × Exercise.Frequency`, para construir un mapa completo de asociaciones entre variables cualitativas.
 
-2. Aplicar Kruskal-Wallis a las variables categóricas que mostraron diferencias visuales en los boxplots (como `Education.Level`, `Customer.Feedback` y `Location`) para verificar si esas diferencias son estadísticamente significativas.
+2. Aplicar Kruskal-Wallis a las demás variables categóricas (por ejemplo `Education.Level`, `Customer.Feedback` y `Location`) para confirmar formalmente lo que sugieren los boxplots: diferencias de mediana mínimas frente a la dispersión de la prima.
 
 3. Aplicar el mismo proceso de verificación de supuestos y correlación de Spearman (o Pearson si se justifica normalidad y linealidad) al resto de las variables continuas del dataset, no solo a `Previous.Claims` y `Credit.Score`.
 
 4. Aplicar una prueba de Kruskal-Wallis sobre `Policy.Start.Month` para determinar formalmente si el mes de inicio de la póliza produce diferencias estadísticamente significativas en la prima, complementando los gráficos exploratorios de la sección temporal.
 
-5. Dado el bajo R² del modelo lineal y el rechazo de la prueba RESET, explorar términos polinómicos, interacciones, la transformación de Box-Cox óptima o modelos no lineales (árboles de decisión, *gradient boosting*), y estimar el modelo con mínimos cuadrados ponderados o regresión robusta para tratar la heterocedasticidad.
+5. Dado el bajo R² del modelo lineal y el rechazo de la prueba RESET, ajustar el modelo con la transformación de Box-Cox (λ ≈ 0.4) y comparar, y explorar términos polinómicos, interacciones, la transformación de Box-Cox óptima o modelos no lineales (árboles de decisión, *gradient boosting*), y estimar el modelo con mínimos cuadrados ponderados o regresión robusta para tratar la heterocedasticidad.
 
 6. Considerar estrategias alternativas para `Previous.Claims` y `Credit.Score` más allá de la imputación por mediana, dado que esta aplana artificialmente la varianza y puede atenuar sus correlaciones reales con el target.
 
